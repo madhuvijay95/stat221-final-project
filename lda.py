@@ -1,12 +1,15 @@
 from scipy.special import digamma
 import numpy as np
 import sys
-import pandas as pd
 from sklearn.feature_extraction.text import CountVectorizer
 import matplotlib.pyplot as plt
 import seaborn as sns
 from sklearn.decomposition import LatentDirichletAllocation as LDAsklearn
+print 'pre-gensim'
+sys.stdout.flush()
 import gensim
+print 'post-gensim'
+sys.stdout.flush()
 
 class LDA:
     def __init__(self, K, alpha, eta, learning_rate=None):
@@ -41,13 +44,19 @@ class LDA:
                 digamma_gamma = digamma(gamma)
                 digamma_gamma_sum = sum(digamma_gamma)
                 for n in range(N):
-                    for k in range(self.K):
-                        phi[n][k] = digamma_gamma[k] - digamma_gamma_sum + digamma_lambda[k][row[n]] - digamma_lambda_sum[k]
+                    #print n
+                    #print digamma_gamma.shape
+                    #print digamma_lambda_sum.shape
+                    #print
+                    phi[n] = digamma_gamma - digamma_gamma_sum + digamma_lambda.T[row[n]] - digamma_lambda_sum
+                    #digamma_lambda.T[row[n]]
+                    #for k in range(self.K):
+                    #    phi[n][k] += digamma_lambda[k][row[n]]
                 phi = (phi.T - phi.max(axis=1)).T
                 #phi = phi - phi.max(axis=0)
                 phi = np.exp(phi)
                 phi = (phi.T / phi.sum(axis=1)).T
-                gamma = phi.sum(axis=1) + self.alpha
+                gamma = phi.sum(axis=0) + self.alpha
                 change = np.linalg.norm(phi-old_phi)
             lmbda_new = self.D * np.dot(phi.T, doc_mat) + self.eta
             self.lmbda = (1 - self.learning_rate(t)) * self.lmbda + self.learning_rate(t) * lmbda_new
