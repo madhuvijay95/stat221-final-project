@@ -5,11 +5,8 @@ from sklearn.feature_extraction.text import CountVectorizer
 import matplotlib.pyplot as plt
 import seaborn as sns
 from sklearn.decomposition import LatentDirichletAllocation as LDAsklearn
-print 'pre-gensim'
-sys.stdout.flush()
 import gensim
-print 'post-gensim'
-sys.stdout.flush()
+import time
 
 class LDA:
     def __init__(self, K, alpha, eta, learning_rate=None):
@@ -29,7 +26,9 @@ class LDA:
             sys.stdout.flush()
             gamma = np.ones(self.K)
             row = np.array(X[d].todense())[0]
-            row = [tup[0] for tup in enumerate(row) for _ in range(tup[1])]
+            row = np.array([tup[0] for tup in enumerate(row) for _ in range(tup[1])])
+            if len(row) == 0:
+                continue
             assert (X[d].sum() == len(row))
             N = len(row)
             doc_mat = np.zeros((N, self.V))
@@ -43,15 +42,7 @@ class LDA:
                 old_phi = phi.copy()
                 digamma_gamma = digamma(gamma)
                 digamma_gamma_sum = sum(digamma_gamma)
-                for n in range(N):
-                    #print n
-                    #print digamma_gamma.shape
-                    #print digamma_lambda_sum.shape
-                    #print
-                    phi[n] = digamma_gamma - digamma_gamma_sum + digamma_lambda.T[row[n]] - digamma_lambda_sum
-                    #digamma_lambda.T[row[n]]
-                    #for k in range(self.K):
-                    #    phi[n][k] += digamma_lambda[k][row[n]]
+                phi = digamma_lambda.T[row] + (digamma_gamma - (digamma_gamma_sum + digamma_lambda_sum))
                 phi = (phi.T - phi.max(axis=1)).T
                 #phi = phi - phi.max(axis=0)
                 phi = np.exp(phi)
@@ -61,7 +52,7 @@ class LDA:
             lmbda_new = self.D * np.dot(phi.T, doc_mat) + self.eta
             self.lmbda = (1 - self.learning_rate(t)) * self.lmbda + self.learning_rate(t) * lmbda_new
             t += 1
-            if t % 10000 == 0:
+            if t % 100000 == 0:
                 sns.heatmap(self.lmbda)
                 plt.show()
                 sns.heatmap((self.lmbda.T / self.lmbda.sum(axis=1)).T)
@@ -111,16 +102,22 @@ class LDA:
 
 with open(sys.path[0] + '\\' + sys.argv[1], 'r') as f:
     corpus = [line[:-1] for line in f.readlines()]
-vectorizer = CountVectorizer(stop_words='english')
+vectorizer = CountVectorizer(stop_words='english', min_df=10)
 X = vectorizer.fit_transform(corpus)
-print vectorizer.vocabulary_
+print len(vectorizer.vocabulary_)
 print X.shape
-#sns.heatmap(X.T.dot(X).todense())
-#plt.show()
+vocab_list = sorted(vectorizer.vocabulary_, key = lambda word : vectorizer.vocabulary_[word])
 
 n_iter = int(sys.argv[2]) if len(sys.argv) > 2 else 1000
 lda = LDA(3, 1, 1, learning_rate = lambda t : (t+1)**(-0.51)) # TODO what are correct values of alpha and eta?
+start_time = time.time()
 lda.fit2(X, n_iter=n_iter)
+end_time = time.time()
+print 'Total time to fit LDA model: %.3f seconds' % (end_time - start_time)
+mean_dist = (lda.lmbda.T / lda.lmbda.sum(axis=1)).T
+mean_dist_normalized = mean_dist - mean_dist.mean(axis=0)
+for row in mean_dist_normalized:
+    print [vocab_list[ind] for ind in sorted(range(len(row)), key = lambda ind : -row[ind])[0:20]]
 print 'lambda (from my LDA):', lda.lmbda
 sys.stdout.flush()
 sns.heatmap(lda.lmbda)
