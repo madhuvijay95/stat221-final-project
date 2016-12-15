@@ -8,6 +8,12 @@ from sklearn.decomposition import LatentDirichletAllocation as LDAsklearn
 import gensim
 import time
 
+def convert_doc(mat, index):
+    row = np.array(mat[index].todense())[0]
+    row = np.array([tup[0] for tup in enumerate(row) for _ in range(tup[1])])
+    assert (mat[index].sum() == len(row))
+    return row
+
 class LDA:
     def __init__(self, K, alpha, eta, learning_rate=None):
         self.K = K
@@ -15,22 +21,55 @@ class LDA:
         self.eta = eta
         self.learning_rate = learning_rate if learning_rate is not None else (lambda t : 1./(t+1))
 
+    def fit2_batched(self, X, batch_size=10, n_iter=1000):
+        self.D, self.V = X.shape
+        self.lmbda = np.random.rand(self.K, self.V)
+        t = 0
+        while t < n_iter:
+            sample_indices = np.random.choice(self.D, size=batch_size, replace=False) # TODO should this be with replacement?
+            print t, '\r',
+            sys.stdout.flush()
+            gamma = np.ones((batch_size, self.K))
+            rows = [convert_doc(X, d) for d in sample_indices]
+            lengths = map(len, rows)
+            doc_mats = [np.zeros((l, self.V)) for l in lengths]
+            for d in range(batch_size):
+                for n in range(lengths[d]):
+                    doc_mats[d][n][rows[d][n]] = 1.
+            phi = [np.zeros((l, self.K)) for l in lengths if l > 0]
+            digamma_lambda = digamma(self.lmbda)
+            digamma_lambda_sum = digamma(self.lmbda.sum(axis=1))
+            change = 5.
+            while change > 0.0001:
+                old_phi = [mat.copy() for mat in phi]
+                phi = [digamma_lambda.T[row] + (digamma(gamma_row) - (digamma(gamma_row.sum()) + digamma_lambda_sum)) for row, gamma_row in zip(rows, gamma) if len(row) > 0]
+                phi = [(mat.T - mat.max(axis=1)).T for mat in phi]
+                phi = map(np.exp, phi)
+                phi = [(mat.T / mat.sum(axis=1)).T for mat in phi]
+                gamma = np.array([mat.sum(axis=0) + self.alpha for mat in phi])
+                change = np.sqrt(sum([np.linalg.norm(mat-old_mat)**2 for mat, old_mat in zip(phi, old_phi)]))
+            lmbda_new = float(self.D) / len(phi) * np.array([np.dot(mat.T, doc_mat) for mat, doc_mat in zip(phi, doc_mats)]).sum(axis=0) + self.eta
+            self.lmbda = (1 - self.learning_rate(t)) * self.lmbda + self.learning_rate(t) * lmbda_new
+            t += 1
+            if t % 1000000 == 0:
+                sns.heatmap(self.lmbda)
+                plt.show()
+                sns.heatmap((self.lmbda.T / self.lmbda.sum(axis=1)).T)
+                plt.show()
+
     def fit2(self, X, n_iter=1000): # TODO generalize by using batches of size >=1
         self.D, self.V = X.shape
         self.lmbda = np.random.rand(self.K, self.V)
-        self.beta = np.zeros((self.K, self.V))
         t = 0
         while t < n_iter:
             d = np.random.randint(0, self.D)
             print t, d, '\r',
             sys.stdout.flush()
             gamma = np.ones(self.K)
-            row = np.array(X[d].todense())[0]
-            row = np.array([tup[0] for tup in enumerate(row) for _ in range(tup[1])])
-            if len(row) == 0:
-                continue
-            assert (X[d].sum() == len(row))
+            row = convert_doc(X, d)
             N = len(row)
+            if N == 0:
+                continue
             doc_mat = np.zeros((N, self.V))
             for n in range(N):
                 doc_mat[n][row[n]] = 1.
@@ -54,8 +93,6 @@ class LDA:
                 plt.show()
                 sns.heatmap((self.lmbda.T / self.lmbda.sum(axis=1)).T)
                 plt.show()
-
-
 
     # takes a D x V matrix of counts (e.g. output of CountVectorizer) as input
     def fit(self, X, n_iter=1000):
@@ -111,7 +148,7 @@ n_topics = int(sys.argv[2])
 n_iter = int(sys.argv[3]) if len(sys.argv) > 3 else 1000
 lda = LDA(n_topics, 1, 1, learning_rate = lambda t : (t+1)**(-0.51)) # TODO what are correct values of alpha and eta?
 start_time = time.time()
-lda.fit2(X, n_iter=n_iter)
+lda.fit2_batched(X, n_iter=n_iter)
 end_time = time.time()
 print
 print 'Total time to fit LDA model: %.3f seconds' % (end_time - start_time)
@@ -153,4 +190,7 @@ lda = gensim.models.ldamodel.LdaModel(corpus=X_lda, num_topics=n_topics, id2word
 end_time = time.time()
 print 'Total time to fit gensim LDA model: %.3f seconds' % (end_time - start_time)
 sys.stdout.flush()
-print lda.print_topics()
+topics = lda.print_topics(num_words=20)
+print topics
+for topic in topics:
+    print [word[6:] for word in topic.split(' + ')]
