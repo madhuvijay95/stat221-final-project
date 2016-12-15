@@ -49,7 +49,7 @@ class LDA:
             while change > 0.0001:
                 old_phi = [mat.copy() for mat in phi]
                 # TODO split the E-step and M-step into 2 separate functions, and call both functions in fit2()
-                phi = [digamma_lambda.T[row] + (digamma(gamma_row) - (digamma(gamma_row.sum()) + digamma_lambda_sum)) for row, gamma_row in zip(rows, gamma)]
+                phi = [digamma_lambda.T[row] + (digamma(gamma_row) - digamma_lambda_sum - digamma(gamma_row.sum())) for row, gamma_row in zip(rows, gamma)]
                 phi = [(mat.T - mat.max(axis=1)).T for mat in phi]
                 phi = map(np.exp, phi)
                 phi = [(mat.T / mat.sum(axis=1)).T for mat in phi]
@@ -87,7 +87,7 @@ class LDA:
             change = 5.
             while change > 0.0001:
                 old_phi = phi.copy()
-                phi = digamma_lambda.T[row] + (digamma(gamma) - (digamma(gamma.sum()) + digamma_lambda_sum))
+                phi = digamma_lambda.T[row] + (digamma(gamma) - digamma_lambda_sum - digamma(gamma.sum()))
                 phi = (phi.T - phi.max(axis=1)).T
                 phi = np.exp(phi)
                 phi = (phi.T / phi.sum(axis=1)).T
@@ -119,7 +119,7 @@ class LDA:
             change = 5.
             while change > 0.001: # TODO is this a sufficient check of convergence? should it be made more/less stringent?
                 old_varphi = varphi.copy()
-                varphi = digamma_lambda.T + (digamma(gamma) - (digamma_lambda_sum - digamma(gamma.sum()))) # V x K
+                varphi = digamma_lambda.T + (digamma(gamma) - digamma_lambda_sum - digamma(gamma.sum())) # V x K
                 varphi = (varphi.T - varphi.max(axis=1)).T # subtract the max element from each log distribution -- ensures numerical stability in exponentiation and doesn't affect final result
                 #varphi = varphi - varphi.max(axis=0) # subtract the max element from each log distribution -- ensures numerical stability in exponentiation and doesn't affect final result
                 varphi = np.exp(varphi)
@@ -133,7 +133,7 @@ class LDA:
             self.lmbda = (1 - self.learning_rate(t)) * self.lmbda + self.learning_rate(t) * lmbda_new
             self.beta = self.beta + varphi.T * np.array(X[d].todense())[0]
             t += 1
-            if t % 10000 == 0:
+            if t % 1000 == 0:
                 sns.heatmap(self.beta)#sns.heatmap((self.beta.T / self.beta.sum(axis=1)).T)
                 plt.show()
                 #self.beta = np.zeros((self.K, self.V)) # TODO remove this
