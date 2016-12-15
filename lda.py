@@ -15,7 +15,7 @@ class LDA:
         self.eta = eta
         self.learning_rate = learning_rate if learning_rate is not None else (lambda t : 1./(t+1))
 
-    def fit2(self, X, n_iter=1000):
+    def fit2(self, X, n_iter=1000): # TODO generalize by using batches of size >=1
         self.D, self.V = X.shape
         self.lmbda = np.random.rand(self.K, self.V)
         self.beta = np.zeros((self.K, self.V))
@@ -40,11 +40,8 @@ class LDA:
             change = 5.
             while change > 0.0001:
                 old_phi = phi.copy()
-                digamma_gamma = digamma(gamma)
-                digamma_gamma_sum = digamma(gamma.sum())
-                phi = digamma_lambda.T[row] + (digamma_gamma - (digamma_gamma_sum + digamma_lambda_sum)) # FIX THIS -- IT DOESN'T USE THE CORRECT EXPECTATIONS FOR THETA_DK AND BETA_KV -- SEE EQUATION 27 ON PAGE 23, WHICH CONTAINS THE RIGHT EXPECTATION; I THINK THE EXPECTATION ON PAGE 21 IS WRONG!!!
+                phi = digamma_lambda.T[row] + (digamma(gamma) - (digamma(gamma.sum()) + digamma_lambda_sum))
                 phi = (phi.T - phi.max(axis=1)).T
-                #phi = phi - phi.max(axis=0)
                 phi = np.exp(phi)
                 phi = (phi.T / phi.sum(axis=1)).T
                 gamma = phi.sum(axis=0) + self.alpha
@@ -70,16 +67,16 @@ class LDA:
         t = 0
         while t < n_iter:
             d = np.random.randint(0, self.D)
-            print t, d, self.beta.sum(), np.array(X[d].todense())[0], '\r',
+            print t, d, self.beta.sum(), '\r',
             sys.stdout.flush()
             gamma = np.ones(self.K) # K
-            delta = digamma(self.lmbda.T) # V x K
-            delta = (delta.T - delta.sum(axis=1)).T # V x K
+            digamma_lambda = digamma(self.lmbda) # K x V
+            digamma_lambda_sum = digamma(self.lmbda.sum(axis=1))
             varphi = np.zeros((self.V, self.K)) # initialize varphi (just for the sake of having a well-defined while-loop condition below)
             change = 5.
             while change > 0.001: # TODO is this a sufficient check of convergence? should it be made more/less stringent?
                 old_varphi = varphi.copy()
-                varphi = delta + digamma(gamma) # V x K
+                varphi = digamma_lambda.T + (digamma(gamma) - (digamma_lambda_sum - digamma(gamma.sum()))) # V x K
                 varphi = (varphi.T - varphi.max(axis=1)).T # subtract the max element from each log distribution -- ensures numerical stability in exponentiation and doesn't affect final result
                 #varphi = varphi - varphi.max(axis=0) # subtract the max element from each log distribution -- ensures numerical stability in exponentiation and doesn't affect final result
                 varphi = np.exp(varphi)
@@ -92,13 +89,15 @@ class LDA:
             #lmbda_new = self.D * np.dot(varphi.T, np.array(X[d].todense())[0]) + self.eta # wrong update rule -- need an elementwise product
             self.lmbda = (1 - self.learning_rate(t)) * self.lmbda + self.learning_rate(t) * lmbda_new
             self.beta = self.beta + varphi.T * np.array(X[d].todense())[0]
+            t += 1
             if t % 10000 == 0:
                 sns.heatmap(self.beta)#sns.heatmap((self.beta.T / self.beta.sum(axis=1)).T)
                 plt.show()
                 #self.beta = np.zeros((self.K, self.V)) # TODO remove this
-            t += 1
             # TODO maybe have self.varphi be t x V x K instead of D x V x K; just append a V x K matrix in each iteration
         self.beta = (self.beta.T / self.beta.sum(axis=1)).T
+
+    # TODO implement functions to output the ELBO and the log likelihood
 
 with open(sys.path[0] + '\\' + sys.argv[1], 'r') as f:
     corpus = [line[:-1] for line in f.readlines()]
@@ -114,27 +113,44 @@ lda = LDA(n_topics, 1, 1, learning_rate = lambda t : (t+1)**(-0.51)) # TODO what
 start_time = time.time()
 lda.fit2(X, n_iter=n_iter)
 end_time = time.time()
+print
 print 'Total time to fit LDA model: %.3f seconds' % (end_time - start_time)
+sys.stdout.flush()
 mean_dist = (lda.lmbda.T / lda.lmbda.sum(axis=1)).T
 mean_dist_normalized = mean_dist - mean_dist.mean(axis=0)
 for row in mean_dist_normalized:
     print [vocab_list[ind] for ind in sorted(range(len(row)), key = lambda ind : -row[ind])[0:20]]
-print 'lambda (from my LDA):', lda.lmbda
-sys.stdout.flush()
-sns.heatmap(lda.lmbda)
-plt.show()
-sns.heatmap((lda.lmbda.T / lda.lmbda.sum(axis=1)).T)
-plt.show()
-print 'beta (from my LDA):', lda.beta
-sys.stdout.flush()
-sns.heatmap(lda.beta)
-plt.show()
+    sys.stdout.flush()
+#print 'lambda (from my LDA):', lda.lmbda
+#sys.stdout.flush()
+#sns.heatmap(lda.lmbda)
+#plt.show()
+#sns.heatmap((lda.lmbda.T / lda.lmbda.sum(axis=1)).T)
+#plt.show()
+#print 'beta (from my LDA):', lda.beta
+#sys.stdout.flush()
+#sns.heatmap(lda.beta)
+#plt.show()
 
-lda_sklearn = LDAsklearn(n_topics=3).fit(X)
-print 'beta (from sklearn LDA)'
-sys.stdout.flush()
-sns.heatmap(lda_sklearn.components_)
-plt.show()
+print
+print
+
+#lda_sklearn = LDAsklearn(n_topics=n_topics).fit(X)
+#for row in lda_sklearn.components_ - lda_sklearn.components_.mean(axis=0):
+#    print [vocab_list[ind] for ind in sorted(range(len(row)), key = lambda ind : -row[ind])[0:20]]
+#    sys.stdout.flush()
+#print 'beta (from sklearn LDA)'
+#sys.stdout.flush()
+#sns.heatmap(lda_sklearn.components_)
+#plt.show()
+
+print
+print
+
 X_lda = [list(enumerate(np.array(row.todense())[0])) for row in X]
-lda = gensim.models.ldamodel.LdaModel(corpus=X_lda, num_topics=3, id2word={v:k for k,v in vectorizer.vocabulary_.items()})
+start_time = time.time()
+lda = gensim.models.ldamodel.LdaModel(corpus=X_lda, num_topics=n_topics, id2word={v:k for k,v in vectorizer.vocabulary_.items()})
+end_time = time.time()
+print 'Total time to fit gensim LDA model: %.3f seconds' % (end_time - start_time)
+sys.stdout.flush()
 print lda.print_topics()
