@@ -102,6 +102,41 @@ class LDA:
                 sns.heatmap((self.lmbda.T / self.lmbda.sum(axis=1)).T)
                 plt.show()
 
+    def fit_batched(self, X, batch_size=16, n_iter=1000):
+        self.D, self.V = X.shape
+        self.lmbda = np.random.rand(self.K, self.V)
+        self.beta = np.zeros((self.K, self.V))
+        t = 0
+        while t < n_iter:
+            sample_indices = np.random.choice(self.D, size=batch_size, replace=False) # TODO should this be with replacement?
+            sample_indices = filter(lambda d : X[d].sum() > 0, sample_indices)
+            curr_batch_size = len(sample_indices)
+            print t, '\r',
+            sys.stdout.flush()
+            gamma = np.ones((curr_batch_size, self.K)) # K
+            digamma_lambda = digamma(self.lmbda) # K x V
+            digamma_lambda_sum = digamma(self.lmbda.sum(axis=1))
+            varphi = np.zeros((curr_batch_size, self.V, self.K)) # initialize varphi (just for the sake of having a well-defined while-loop condition below)
+            change = 5.
+            while change > 0.0001:
+                old_varphi = varphi.copy()
+                #print np.array([np.tile(arr, (self.V, 1)) for arr in digamma(gamma)]).shape, digamma_lambda.T.shape, digamma_lambda_sum.shape, digamma(gamma.sum()).shape
+                varphi = np.array([np.tile(arr, (self.V, 1)) for arr in digamma(gamma)]) + (digamma_lambda.T - (digamma_lambda_sum + digamma(gamma.sum()))) # B x V x K
+                varphi = varphi.T # K x V x B
+                varphi = varphi - varphi.max(axis=0) # K x V x B
+                varphi = np.exp(varphi) # K x V x B
+                varphi = varphi / varphi.sum(axis=0) # K x V x B
+                varphi = varphi.T # B x V x K
+                gamma = np.array([np.dot(varphi_mat.T, doc_vec) for varphi_mat, doc_vec in zip(varphi, np.array(X[sample_indices].todense()))]) + self.alpha # B x K
+                change = np.linalg.norm(varphi-old_varphi)
+            lmbda_new = float(self.D) / curr_batch_size * (varphi.T * np.array(X[sample_indices].T.todense())).sum(axis=2) + self.eta
+            self.lmbda = (1 - self.learning_rate(t)) * self.lmbda + self.learning_rate(t) * lmbda_new
+            t += 1
+            if t % 1000 == 0:
+                sns.heatmap(self.lmbda)
+                plt.show()
+
+
     # takes a D x V matrix of counts (e.g. output of CountVectorizer) as input
     def fit(self, X, n_iter=1000): # TODO make a batched version of this as well
         self.D, self.V = X.shape
@@ -128,17 +163,13 @@ class LDA:
                 gamma = np.dot(varphi.T, np.array(X[d].todense())[0]) + self.alpha # K
                 change = np.linalg.norm(varphi-old_varphi)
             lmbda_new = self.D * varphi.T * np.array(X[d].todense())[0] + self.eta
-            #print lmbda_new.sum(axis=1)
             #lmbda_new = self.D * np.dot(varphi.T, np.array(X[d].todense())[0]) + self.eta # wrong update rule -- need an elementwise product
             self.lmbda = (1 - self.learning_rate(t)) * self.lmbda + self.learning_rate(t) * lmbda_new
             self.beta = self.beta + varphi.T * np.array(X[d].todense())[0]
             t += 1
             if t % 1000 == 0:
-                sns.heatmap(self.beta)#sns.heatmap((self.beta.T / self.beta.sum(axis=1)).T)
+                sns.heatmap(self.beta)
                 plt.show()
-                #self.beta = np.zeros((self.K, self.V)) # TODO remove this
-            # TODO maybe have self.varphi be t x V x K instead of D x V x K; just append a V x K matrix in each iteration
-        self.beta = (self.beta.T / self.beta.sum(axis=1)).T
 
     # TODO implement functions to output the ELBO and the log likelihood
 
