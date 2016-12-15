@@ -17,38 +17,45 @@ def convert_doc(mat, index):
 class LDA:
     def __init__(self, K, alpha, eta, learning_rate=None):
         self.K = K
-        self.alpha = alpha
+        self.alpha = alpha # TODO figure out how to set these parameters -- model bsaed on Hoffman et al.'s code
         self.eta = eta
-        self.learning_rate = learning_rate if learning_rate is not None else (lambda t : 1./(t+1))
+        self.learning_rate = learning_rate if learning_rate is not None else (lambda t : 1./(t+1)) # TODO model learning rate after Hoffman et al.'s code
 
-    def fit2_batched(self, X, batch_size=10, n_iter=1000):
+    def fit2_batched(self, X, batch_size=16, n_iter=1000):
         self.D, self.V = X.shape
         self.lmbda = np.random.rand(self.K, self.V)
         t = 0
         while t < n_iter:
             sample_indices = np.random.choice(self.D, size=batch_size, replace=False) # TODO should this be with replacement?
+            sample_indices = filter(lambda d : X[d].sum() > 0, sample_indices)
+            curr_batch_size = len(sample_indices)
+            if curr_batch_size < batch_size:
+                print sample_indices
+                print
             print t, '\r',
             sys.stdout.flush()
-            gamma = np.ones((batch_size, self.K))
             rows = [convert_doc(X, d) for d in sample_indices]
             lengths = map(len, rows)
+            assert(min(lengths) > 0)
             doc_mats = [np.zeros((l, self.V)) for l in lengths]
-            for d in range(batch_size):
+            for d in range(curr_batch_size):
                 for n in range(lengths[d]):
                     doc_mats[d][n][rows[d][n]] = 1.
-            phi = [np.zeros((l, self.K)) for l in lengths if l > 0]
+            gamma = np.ones((curr_batch_size, self.K))
+            phi = [np.zeros((l, self.K)) for l in lengths]
             digamma_lambda = digamma(self.lmbda)
             digamma_lambda_sum = digamma(self.lmbda.sum(axis=1))
             change = 5.
             while change > 0.0001:
                 old_phi = [mat.copy() for mat in phi]
-                phi = [digamma_lambda.T[row] + (digamma(gamma_row) - (digamma(gamma_row.sum()) + digamma_lambda_sum)) for row, gamma_row in zip(rows, gamma) if len(row) > 0]
+                # TODO split the E-step and M-step into 2 separate functions, and call both functions in fit2()
+                phi = [digamma_lambda.T[row] + (digamma(gamma_row) - (digamma(gamma_row.sum()) + digamma_lambda_sum)) for row, gamma_row in zip(rows, gamma)]
                 phi = [(mat.T - mat.max(axis=1)).T for mat in phi]
                 phi = map(np.exp, phi)
                 phi = [(mat.T / mat.sum(axis=1)).T for mat in phi]
                 gamma = np.array([mat.sum(axis=0) + self.alpha for mat in phi])
                 change = np.sqrt(sum([np.linalg.norm(mat-old_mat)**2 for mat, old_mat in zip(phi, old_phi)]))
-            lmbda_new = float(self.D) / len(phi) * np.array([np.dot(mat.T, doc_mat) for mat, doc_mat in zip(phi, doc_mats)]).sum(axis=0) + self.eta
+            lmbda_new = float(self.D) / curr_batch_size * np.array([np.dot(mat.T, doc_mat) for mat, doc_mat in zip(phi, doc_mats)]).sum(axis=0) + self.eta
             self.lmbda = (1 - self.learning_rate(t)) * self.lmbda + self.learning_rate(t) * lmbda_new
             t += 1
             if t % 1000000 == 0:
@@ -57,7 +64,8 @@ class LDA:
                 sns.heatmap((self.lmbda.T / self.lmbda.sum(axis=1)).T)
                 plt.show()
 
-    def fit2(self, X, n_iter=1000): # TODO generalize by using batches of size >=1
+    # TODO I believe this is now obsolete; use fit2_batched instead
+    def fit2(self, X, n_iter=1000):
         self.D, self.V = X.shape
         self.lmbda = np.random.rand(self.K, self.V)
         t = 0
@@ -95,12 +103,10 @@ class LDA:
                 plt.show()
 
     # takes a D x V matrix of counts (e.g. output of CountVectorizer) as input
-    def fit(self, X, n_iter=1000):
+    def fit(self, X, n_iter=1000): # TODO make a batched version of this as well
         self.D, self.V = X.shape
         self.lmbda = np.random.rand(self.K, self.V)
         self.beta = np.zeros((self.K, self.V))
-        #self.varphi = np.zeros(D, V, K)
-        #self.gamma = np.zeros(D, K)
         t = 0
         while t < n_iter:
             d = np.random.randint(0, self.D)
@@ -190,7 +196,7 @@ lda = gensim.models.ldamodel.LdaModel(corpus=X_lda, num_topics=n_topics, id2word
 end_time = time.time()
 print 'Total time to fit gensim LDA model: %.3f seconds' % (end_time - start_time)
 sys.stdout.flush()
-topics = lda.print_topics(num_words=20)
+topics = lda.print_topics(num_words=20) # TODO this doesn't match the output of the above. I should be printing the "representative" words for each topic, not the most popular ones -- e.g. "said" is the top word in every single topic right now.
 print topics
 for topic in topics:
     print [word[6:] for word in topic.split(' + ')]
