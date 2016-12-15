@@ -36,13 +36,13 @@ class LDA:
                 doc_mat[n][row[n]] = 1.
             phi = np.zeros((N, self.K))
             digamma_lambda = digamma(self.lmbda)
-            digamma_lambda_sum = digamma_lambda.sum(axis=1)
+            digamma_lambda_sum = digamma(self.lmbda.sum(axis=1))
             change = 5.
             while change > 0.0001:
                 old_phi = phi.copy()
                 digamma_gamma = digamma(gamma)
-                digamma_gamma_sum = sum(digamma_gamma)
-                phi = digamma_lambda.T[row] + (digamma_gamma - (digamma_gamma_sum + digamma_lambda_sum))
+                digamma_gamma_sum = digamma(gamma.sum())
+                phi = digamma_lambda.T[row] + (digamma_gamma - (digamma_gamma_sum + digamma_lambda_sum)) # FIX THIS -- IT DOESN'T USE THE CORRECT EXPECTATIONS FOR THETA_DK AND BETA_KV -- SEE EQUATION 27 ON PAGE 23, WHICH CONTAINS THE RIGHT EXPECTATION; I THINK THE EXPECTATION ON PAGE 21 IS WRONG!!!
                 phi = (phi.T - phi.max(axis=1)).T
                 #phi = phi - phi.max(axis=0)
                 phi = np.exp(phi)
@@ -52,7 +52,7 @@ class LDA:
             lmbda_new = self.D * np.dot(phi.T, doc_mat) + self.eta
             self.lmbda = (1 - self.learning_rate(t)) * self.lmbda + self.learning_rate(t) * lmbda_new
             t += 1
-            if t % 100000 == 0:
+            if t % 1000000 == 0:
                 sns.heatmap(self.lmbda)
                 plt.show()
                 sns.heatmap((self.lmbda.T / self.lmbda.sum(axis=1)).T)
@@ -108,8 +108,9 @@ print len(vectorizer.vocabulary_)
 print X.shape
 vocab_list = sorted(vectorizer.vocabulary_, key = lambda word : vectorizer.vocabulary_[word])
 
-n_iter = int(sys.argv[2]) if len(sys.argv) > 2 else 1000
-lda = LDA(3, 1, 1, learning_rate = lambda t : (t+1)**(-0.51)) # TODO what are correct values of alpha and eta?
+n_topics = int(sys.argv[2])
+n_iter = int(sys.argv[3]) if len(sys.argv) > 3 else 1000
+lda = LDA(n_topics, 1, 1, learning_rate = lambda t : (t+1)**(-0.51)) # TODO what are correct values of alpha and eta?
 start_time = time.time()
 lda.fit2(X, n_iter=n_iter)
 end_time = time.time()
