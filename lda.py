@@ -15,11 +15,11 @@ def convert_doc(mat, index):
     return row
 
 class LDA:
-    def __init__(self, K, alpha, eta, learning_rate=None):
+    def __init__(self, K, alpha, eta, tau, kappa):
         self.K = K
         self.alpha = alpha # TODO figure out how to set these parameters -- model bsaed on Hoffman et al.'s code
         self.eta = eta
-        self.learning_rate = learning_rate if learning_rate is not None else (lambda t : 1./(t+1)) # TODO model learning rate after Hoffman et al.'s code
+        self.learning_rate = lambda t : pow(tau+t+1, -kappa)
 
     def fit2_batched(self, X, batch_size=16, n_iter=1000):
         self.D, self.V = X.shape
@@ -29,9 +29,6 @@ class LDA:
             sample_indices = np.random.choice(self.D, size=batch_size, replace=False) # TODO should this be with replacement?
             sample_indices = filter(lambda d : X[d].sum() > 0, sample_indices)
             curr_batch_size = len(sample_indices)
-            if curr_batch_size < batch_size:
-                print sample_indices
-                print
             print t, '\r',
             sys.stdout.flush()
             rows = [convert_doc(X, d) for d in sample_indices]
@@ -54,7 +51,7 @@ class LDA:
                 phi = map(np.exp, phi)
                 phi = [(mat.T / mat.sum(axis=1)).T for mat in phi]
                 gamma = np.array([mat.sum(axis=0) + self.alpha for mat in phi])
-                change = np.sqrt(sum([np.linalg.norm(mat-old_mat)**2 for mat, old_mat in zip(phi, old_phi)]))
+                change = np.sqrt(sum([pow(np.linalg.norm(mat-old_mat), 2) for mat, old_mat in zip(phi, old_phi)]))
             lmbda_new = float(self.D) / curr_batch_size * np.array([np.dot(mat.T, doc_mat) for mat, doc_mat in zip(phi, doc_mats)]).sum(axis=0) + self.eta
             self.lmbda = (1 - self.learning_rate(t)) * self.lmbda + self.learning_rate(t) * lmbda_new
             t += 1
@@ -183,7 +180,7 @@ vocab_list = sorted(vectorizer.vocabulary_, key = lambda word : vectorizer.vocab
 
 n_topics = int(sys.argv[2])
 n_iter = int(sys.argv[3]) if len(sys.argv) > 3 else 1000
-lda = LDA(n_topics, 1, 1, learning_rate = lambda t : (t+1)**(-0.51)) # TODO what are correct values of alpha and eta?
+lda = LDA(n_topics, 1./n_topics, 1./n_topics, 1, 0.51)
 start_time = time.time()
 lda.fit2_batched(X, n_iter=n_iter)
 end_time = time.time()
