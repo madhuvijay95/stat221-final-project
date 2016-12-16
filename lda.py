@@ -15,8 +15,10 @@ def convert_doc(doc):
     return row
 
 class LDA:
-    def __init__(self, K, alpha, eta, tau, kappa):
+    def __init__(self, K, D, V, alpha, eta, tau, kappa):
         self.K = K
+        self.D = D
+        self.V = V
         self.alpha = alpha # TODO figure out how to set these parameters -- model bsaed on Hoffman et al.'s code
         self.eta = eta
         self.learning_rate = lambda t : pow(tau+t+1, -kappa)
@@ -52,8 +54,13 @@ class LDA:
         lmbda_new = float(self.D) / batch_size * np.array([np.dot(mat.T, doc_mat) for mat, doc_mat in zip(phi, doc_mats)]).sum(axis=0) + self.eta
         self.lmbda = (1 - self.learning_rate(t)) * self.lmbda + self.learning_rate(t) * lmbda_new
 
+    def batch_update2(self, docs, t):
+        phi, gamma = self.e_step(docs)
+        self.m_step(docs, phi, t)
+        return phi, gamma
+
     def fit2_batched(self, X, batch_size=16, n_iter=1000): # TODO create a new version of this that avoids computing anything for the same term multiple times; i.e. if a single term appears in the doc multiple times, then just compute it once. maybe model this after Hoffman et al's code?
-        self.D, self.V = X.shape
+        assert(self.V == X.shape[1])
         self.lmbda = np.random.rand(self.K, self.V)
         t = 0
         elbo_lst = []
@@ -64,8 +71,7 @@ class LDA:
             sample_indices = filter(lambda d : X[d].sum() > 0, sample_indices)
             rows = [convert_doc(X[d]) for d in sample_indices]
 
-            phi, gamma = self.e_step(rows)
-            self.m_step(rows, phi, t)
+            phi, gamma = self.batch_update2(rows, t)
             elbo_lst.append(self.elbo(rows, phi, gamma))
             t += 1
             if t % 1000000 == 0:
@@ -242,10 +248,11 @@ X = vectorizer.fit_transform(corpus)
 print len(vectorizer.vocabulary_)
 print X.shape
 vocab_list = sorted(vectorizer.vocabulary_, key = lambda word : vectorizer.vocabulary_[word])
+D, V = X.shape
 
 n_topics = int(sys.argv[2])
 n_iter = int(sys.argv[3]) if len(sys.argv) > 3 else 1000
-lda = LDA(n_topics, 1./n_topics, 1./n_topics, 1, 0.51)
+lda = LDA(n_topics, D, V, 1./n_topics, 1./n_topics, 1, 0.51)
 start_time = time.time()
 lda.fit2_batched(X, n_iter=n_iter)
 end_time = time.time()
