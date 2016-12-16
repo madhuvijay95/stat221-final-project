@@ -201,20 +201,32 @@ class LDA:
         Elogpbeta = self.K * (gammaln(self.V * self.eta) - self.V * gammaln(self.eta)) + (self.eta-1) * ElogbetaT.sum()
         # E[log p(theta|alpha)]
         Elogptheta = self.D * (gammaln(self.K * self.alpha) - self.K * gammaln(self.alpha)) + (self.alpha-1) * ElogthetaT.sum()
+        # E[log p(z|theta)]
+        Elogpz = (np.array([phi_mat.sum(axis=0) for phi_mat in phi]) * ElogthetaT.T).sum()
+        ## E[log p(X|beta,theta)], which seems to be what Hoffman et al. 2013 uses
+        #ElogpX = 0.
+        #for i, doc in enumerate(docs):
+        #    ElogpX += ElogthetaT.T[i].sum() * len(doc) + ElogbetaT[doc].sum()
         # E[log p(X|z,beta)]
         ElogpX = 0.
+        assert(len(docs)==len(phi))
         for doc, phi_mat in zip(docs, phi):
+            #print phi_mat.shape, ElogbetaT[doc].shape
+            assert(phi_mat.shape == ElogbetaT[doc].shape)
             ElogpX += (phi_mat * ElogbetaT[doc]).sum()
         # E[log q(beta|lambda)]
         Elogqbeta = ((self.lmbda - 1) * ElogbetaT.T).sum() - gammaln(self.lmbda).sum() + gammaln(self.lmbda.sum(axis=1)).sum()
         # E[log q(theta|gamma)]
         Elogqtheta = ((gamma - 1) * ElogthetaT.T).sum() - gammaln(gamma).sum() + gammaln(gamma.sum(axis=1)).sum()
+        # E[log q(z|phi)]
+        Elogqz = sum([(phi_mat * np.log(phi_mat)).sum() for phi_mat in phi])
         # compute ELBO, while making sure that local (document-specific) terms are multipled by D/(batch size), to
         # account for the fact that we are only computing the ELBO on a small batch
-        score = float(self.D) / len(docs) * (Elogptheta + ElogpX - Elogqtheta) + Elogpbeta - Elogqbeta
-        return score#(self.eta-1) * ElogbetaT.sum(), ((self.lmbda - 1) * ElogbetaT.T).sum(), -gammaln(self.lmbda).sum(), gammaln(self.lmbda.sum(axis=1)).sum()
+        score = float(self.D) / len(docs) * (Elogptheta + Elogpz + ElogpX - Elogqtheta - Elogqz) + Elogpbeta - Elogqbeta
+        return score
+        #return float(self.D) / len(docs) * ElogpX, float(self.D) / len(docs) * (Elogptheta - Elogqtheta), float(self.D) / len(docs) * (Elogpz - Elogqz), Elogpbeta - Elogqbeta, score
 
-    # TODO implement functions to output the ELBO and the log likelihood
+    # TODO implement functions to output the log likelihood or perplexity (esp. for the sake of model comparison with HDPs)
 
 with open(sys.path[0] + '\\' + sys.argv[1], 'r') as f:
     corpus = [line[:-1] for line in f.readlines()]
@@ -228,7 +240,7 @@ n_topics = int(sys.argv[2])
 n_iter = int(sys.argv[3]) if len(sys.argv) > 3 else 1000
 lda = LDA(n_topics, 1./n_topics, 1./n_topics, 1, 0.51)
 start_time = time.time()
-lda.fit2_batched(X, n_iter=n_iter, batch_size=64)
+lda.fit2_batched(X, n_iter=n_iter)
 end_time = time.time()
 print
 print 'Total time to fit LDA model: %.3f seconds' % (end_time - start_time)
