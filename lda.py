@@ -53,6 +53,7 @@ class LDA:
             print t,
             sys.stdout.flush()
             rows = [convert_doc(X, d) for d in sample_indices]
+
             lengths = map(len, rows)
             assert(min(lengths) > 0)
             doc_mats = [np.zeros((l, self.V)) for l in lengths]
@@ -62,13 +63,13 @@ class LDA:
             ## TODO precompute E[beta|lambda] matrix here, to reduce the number of computations in the inner loop below
             ## TODO split the E-step and M-step into 2 separate functions, and call both functions in fit2()
             phi, gamma = self.e_step(rows)
+            lmbda_new = float(self.D) / curr_batch_size * np.array([np.dot(mat.T, doc_mat) for mat, doc_mat in zip(phi, doc_mats)]).sum(axis=0) + self.eta
+            self.lmbda = (1 - self.learning_rate(t)) * self.lmbda + self.learning_rate(t) * lmbda_new
             start_time = time.time()
             elbo_lst.append(self.elbo(rows, phi, gamma))
             end_time = time.time()
             print type(elbo_lst[-1]), '%.3f' % (end_time - start_time), '\r',
             sys.stdout.flush()
-            lmbda_new = float(self.D) / curr_batch_size * np.array([np.dot(mat.T, doc_mat) for mat, doc_mat in zip(phi, doc_mats)]).sum(axis=0) + self.eta
-            self.lmbda = (1 - self.learning_rate(t)) * self.lmbda + self.learning_rate(t) * lmbda_new
             t += 1
             if t % 1000000 == 0:
                 sns.heatmap(self.lmbda)
@@ -76,6 +77,10 @@ class LDA:
                 sns.heatmap((self.lmbda.T / self.lmbda.sum(axis=1)).T)
                 plt.show()
         plt.plot(elbo_lst)
+        plt.show()
+        elbo_lst = np.array(elbo_lst)
+        window = 5
+        plt.plot(reduce(lambda a,b : a+b, [elbo_lst[i:len(elbo_lst)-window+i] for i in range(window)]) / window)
         plt.show()
 
     # TODO I believe this is now obsolete; use fit2_batched instead
@@ -227,10 +232,11 @@ class LDA:
         #return float(self.D) / len(docs) * ElogpX, float(self.D) / len(docs) * (Elogptheta - Elogqtheta), float(self.D) / len(docs) * (Elogpz - Elogqz), Elogpbeta - Elogqbeta, score
 
     # TODO implement functions to output the log likelihood or perplexity (esp. for the sake of model comparison with HDPs)
+    # TODO look at the ELBO computation in Hoffman et al. 2010 (section 2.1)s, to check the correctness of what I have
 
 with open(sys.path[0] + '\\' + sys.argv[1], 'r') as f:
     corpus = [line[:-1] for line in f.readlines()]
-vectorizer = CountVectorizer(stop_words='english', min_df=10)
+vectorizer = CountVectorizer(stop_words='english', min_df=10) # *****TODO can't just CountVectorizer the whole input, because that's a non-online operation. we need to pre-specify a vocabulary (e.g. use the vocabulary they used in Hoffman et al.'s code), so that it can be done in a streaming/online way without having to infer the vocab from the whole dataset
 X = vectorizer.fit_transform(corpus)
 print len(vectorizer.vocabulary_)
 print X.shape
