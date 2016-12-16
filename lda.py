@@ -22,6 +22,9 @@ class LDA:
         self.learning_rate = lambda t : pow(tau+t+1, -kappa)
 
     def e_step(self, docs):
+        # deal with the case where only 1 document was passed in (rather than a list of documents)
+        if type(docs) != list:
+            docs = [docs]
         gamma = np.ones((len(docs), self.K))
         phi = [np.zeros((l, self.K)) for l in map(len, docs)]
         digamma_lambda = digamma(self.lmbda)
@@ -74,9 +77,6 @@ class LDA:
                 plt.show()
         plt.plot(elbo_lst)
         plt.show()
-        plt.plot(elbo_lst[1:])
-        plt.show()
-        print elbo_lst
 
     # TODO I believe this is now obsolete; use fit2_batched instead
     def fit2(self, X, n_iter=1000): # TODO create a new version of this that avoids computing anything for the same term multiple times; i.e. if a single term appears in the doc multiple times, then just compute it once. maybe model this after Hoffman et al's code?
@@ -198,17 +198,21 @@ class LDA:
         ElogthetaT = digamma_gamma.T - digamma_gamma_sum
 
         # E[log p(beta|eta)]
-        score = self.K * (gammaln(self.V * self.eta) - self.V * gammaln(self.eta)) + (self.eta-1) * ElogbetaT.sum()
+        Elogpbeta = self.K * (gammaln(self.V * self.eta) - self.V * gammaln(self.eta)) + (self.eta-1) * ElogbetaT.sum()
         # E[log p(theta|alpha)]
-        score += self.D * (gammaln(self.K * self.alpha) - self.K * gammaln(self.alpha)) + (self.alpha-1) * ElogthetaT.sum()
+        Elogptheta = self.D * (gammaln(self.K * self.alpha) - self.K * gammaln(self.alpha)) + (self.alpha-1) * ElogthetaT.sum()
         # E[log p(X|z,beta)]
+        ElogpX = 0.
         for doc, phi_mat in zip(docs, phi):
-            score += (phi_mat * ElogbetaT[doc]).sum()
+            ElogpX += (phi_mat * ElogbetaT[doc]).sum()
         # E[log q(beta|lambda)]
-        score += ((self.lmbda - 1) * ElogbetaT.T).sum() - gammaln(self.lmbda).sum() + gammaln(self.lmbda.sum(axis=1)).sum()
+        Elogqbeta = ((self.lmbda - 1) * ElogbetaT.T).sum() - gammaln(self.lmbda).sum() + gammaln(self.lmbda.sum(axis=1)).sum()
         # E[log q(theta|gamma)]
-        score += ((gamma - 1) * ElogthetaT.T).sum() - gammaln(gamma).sum() + gammaln(gamma.sum(axis=1)).sum()
-        return score
+        Elogqtheta = ((gamma - 1) * ElogthetaT.T).sum() - gammaln(gamma).sum() + gammaln(gamma.sum(axis=1)).sum()
+        # compute ELBO, while making sure that local (document-specific) terms are multipled by D/(batch size), to
+        # account for the fact that we are only computing the ELBO on a small batch
+        score = float(self.D) / len(docs) * (Elogptheta + ElogpX - Elogqtheta) + Elogpbeta - Elogqbeta
+        return score#(self.eta-1) * ElogbetaT.sum(), ((self.lmbda - 1) * ElogbetaT.T).sum(), -gammaln(self.lmbda).sum(), gammaln(self.lmbda.sum(axis=1)).sum()
 
     # TODO implement functions to output the ELBO and the log likelihood
 
@@ -224,7 +228,7 @@ n_topics = int(sys.argv[2])
 n_iter = int(sys.argv[3]) if len(sys.argv) > 3 else 1000
 lda = LDA(n_topics, 1./n_topics, 1./n_topics, 1, 0.51)
 start_time = time.time()
-lda.fit2_batched(X, n_iter=n_iter)
+lda.fit2_batched(X, n_iter=n_iter, batch_size=64)
 end_time = time.time()
 print
 print 'Total time to fit LDA model: %.3f seconds' % (end_time - start_time)
