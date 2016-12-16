@@ -1,4 +1,4 @@
-from scipy.special import digamma
+from scipy.special import digamma, gammaln
 import numpy as np
 import sys
 from sklearn.feature_extraction.text import CountVectorizer
@@ -21,15 +21,33 @@ class LDA:
         self.eta = eta
         self.learning_rate = lambda t : pow(tau+t+1, -kappa)
 
-    def fit2_batched(self, X, batch_size=16, n_iter=1000):
+    def e_step(self, docs):
+        gamma = np.ones((len(docs), self.K))
+        phi = [np.zeros((l, self.K)) for l in map(len, docs)]
+        digamma_lambda = digamma(self.lmbda)
+        digamma_lambda_sum = digamma(self.lmbda.sum(axis=1))
+        ElogbetaT = digamma_lambda.T - digamma_lambda_sum
+        change = 5.
+        while change > 0.0001:
+            old_phi = [mat.copy() for mat in phi]
+            phi = [ElogbetaT[row] + (digamma(gamma_row) - digamma(gamma_row.sum())) for row, gamma_row in zip(docs, gamma)]
+            phi = [(mat.T - mat.max(axis=1)).T for mat in phi]
+            phi = map(np.exp, phi)
+            phi = [(mat.T / mat.sum(axis=1)).T for mat in phi]
+            gamma = np.array([mat.sum(axis=0) + self.alpha for mat in phi])
+            change = np.sqrt(sum([pow(np.linalg.norm(mat-old_mat), 2) for mat, old_mat in zip(phi, old_phi)]))
+        return phi, gamma
+
+    def fit2_batched(self, X, batch_size=16, n_iter=1000): # TODO create a new version of this that avoids computing anything for the same term multiple times; i.e. if a single term appears in the doc multiple times, then just compute it once. maybe model this after Hoffman et al's code?
         self.D, self.V = X.shape
         self.lmbda = np.random.rand(self.K, self.V)
         t = 0
+        elbo_lst = []
         while t < n_iter:
             sample_indices = np.random.choice(self.D, size=batch_size, replace=False) # TODO should this be with replacement?
             sample_indices = filter(lambda d : X[d].sum() > 0, sample_indices)
             curr_batch_size = len(sample_indices)
-            print t, '\r',
+            print t,
             sys.stdout.flush()
             rows = [convert_doc(X, d) for d in sample_indices]
             lengths = map(len, rows)
@@ -38,20 +56,14 @@ class LDA:
             for d in range(curr_batch_size):
                 for n in range(lengths[d]):
                     doc_mats[d][n][rows[d][n]] = 1.
-            gamma = np.ones((curr_batch_size, self.K))
-            phi = [np.zeros((l, self.K)) for l in lengths]
-            digamma_lambda = digamma(self.lmbda)
-            digamma_lambda_sum = digamma(self.lmbda.sum(axis=1))
-            change = 5.
-            while change > 0.0001:
-                old_phi = [mat.copy() for mat in phi]
-                # TODO split the E-step and M-step into 2 separate functions, and call both functions in fit2()
-                phi = [digamma_lambda.T[row] + (digamma(gamma_row) - digamma_lambda_sum - digamma(gamma_row.sum())) for row, gamma_row in zip(rows, gamma)]
-                phi = [(mat.T - mat.max(axis=1)).T for mat in phi]
-                phi = map(np.exp, phi)
-                phi = [(mat.T / mat.sum(axis=1)).T for mat in phi]
-                gamma = np.array([mat.sum(axis=0) + self.alpha for mat in phi])
-                change = np.sqrt(sum([pow(np.linalg.norm(mat-old_mat), 2) for mat, old_mat in zip(phi, old_phi)]))
+            ## TODO precompute E[beta|lambda] matrix here, to reduce the number of computations in the inner loop below
+            ## TODO split the E-step and M-step into 2 separate functions, and call both functions in fit2()
+            phi, gamma = self.e_step(rows)
+            start_time = time.time()
+            elbo_lst.append(self.elbo(rows, phi, gamma))
+            end_time = time.time()
+            print type(elbo_lst[-1]), '%.3f' % (end_time - start_time), '\r',
+            sys.stdout.flush()
             lmbda_new = float(self.D) / curr_batch_size * np.array([np.dot(mat.T, doc_mat) for mat, doc_mat in zip(phi, doc_mats)]).sum(axis=0) + self.eta
             self.lmbda = (1 - self.learning_rate(t)) * self.lmbda + self.learning_rate(t) * lmbda_new
             t += 1
@@ -60,9 +72,14 @@ class LDA:
                 plt.show()
                 sns.heatmap((self.lmbda.T / self.lmbda.sum(axis=1)).T)
                 plt.show()
+        plt.plot(elbo_lst)
+        plt.show()
+        plt.plot(elbo_lst[1:])
+        plt.show()
+        print elbo_lst
 
     # TODO I believe this is now obsolete; use fit2_batched instead
-    def fit2(self, X, n_iter=1000):
+    def fit2(self, X, n_iter=1000): # TODO create a new version of this that avoids computing anything for the same term multiple times; i.e. if a single term appears in the doc multiple times, then just compute it once. maybe model this after Hoffman et al's code?
         self.D, self.V = X.shape
         self.lmbda = np.random.rand(self.K, self.V)
         t = 0
@@ -167,6 +184,31 @@ class LDA:
             if t % 1000 == 0:
                 sns.heatmap(self.beta)
                 plt.show()
+
+    def elbo(self, docs, phi=None, gamma=None):
+        if phi is None or gamma is None:
+            phi, gamma = self.e_step(docs)
+
+        digamma_lambda = digamma(self.lmbda)
+        digamma_lambda_sum = digamma(self.lmbda.sum(axis=1))
+        ElogbetaT = digamma_lambda.T - digamma_lambda_sum
+
+        digamma_gamma = digamma(gamma)
+        digamma_gamma_sum = digamma(gamma.sum(axis=1))
+        ElogthetaT = digamma_gamma.T - digamma_gamma_sum
+
+        # E[log p(beta|eta)]
+        score = self.K * (gammaln(self.V * self.eta) - self.V * gammaln(self.eta)) + (self.eta-1) * ElogbetaT.sum()
+        # E[log p(theta|alpha)]
+        score += self.D * (gammaln(self.K * self.alpha) - self.K * gammaln(self.alpha)) + (self.alpha-1) * ElogthetaT.sum()
+        # E[log p(X|z,beta)]
+        for doc, phi_mat in zip(docs, phi):
+            score += (phi_mat * ElogbetaT[doc]).sum()
+        # E[log q(beta|lambda)]
+        score += ((self.lmbda - 1) * ElogbetaT.T).sum() - gammaln(self.lmbda).sum() + gammaln(self.lmbda.sum(axis=1)).sum()
+        # E[log q(theta|gamma)]
+        score += ((gamma - 1) * ElogthetaT.T).sum() - gammaln(gamma).sum() + gammaln(gamma.sum(axis=1)).sum()
+        return score
 
     # TODO implement functions to output the ELBO and the log likelihood
 
