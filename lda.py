@@ -8,10 +8,10 @@ from sklearn.decomposition import LatentDirichletAllocation as LDAsklearn
 import gensim
 import time
 
-def convert_doc(mat, index):
-    row = np.array(mat[index].todense())[0]
+def convert_doc(doc):
+    row = np.array(doc.todense())[0]
     row = np.array([tup[0] for tup in enumerate(row) for _ in range(tup[1])])
-    assert (mat[index].sum() == len(row))
+    assert (doc.sum() == len(row))
     return row
 
 class LDA:
@@ -41,35 +41,32 @@ class LDA:
             change = np.sqrt(sum([pow(np.linalg.norm(mat-old_mat), 2) for mat, old_mat in zip(phi, old_phi)]))
         return phi, gamma
 
+    def m_step(self, docs, phi, t):
+        batch_size = len(docs)
+        lengths = map(len, docs)
+        assert(min(lengths) > 0)
+        doc_mats = [np.zeros((l, self.V)) for l in lengths]
+        for d in range(batch_size):
+            for n in range(lengths[d]):
+                doc_mats[d][n][docs[d][n]] = 1.
+        lmbda_new = float(self.D) / batch_size * np.array([np.dot(mat.T, doc_mat) for mat, doc_mat in zip(phi, doc_mats)]).sum(axis=0) + self.eta
+        self.lmbda = (1 - self.learning_rate(t)) * self.lmbda + self.learning_rate(t) * lmbda_new
+
     def fit2_batched(self, X, batch_size=16, n_iter=1000): # TODO create a new version of this that avoids computing anything for the same term multiple times; i.e. if a single term appears in the doc multiple times, then just compute it once. maybe model this after Hoffman et al's code?
         self.D, self.V = X.shape
         self.lmbda = np.random.rand(self.K, self.V)
         t = 0
         elbo_lst = []
         while t < n_iter:
+            print t, '\r',
+            sys.stdout.flush()
             sample_indices = np.random.choice(self.D, size=batch_size, replace=False) # TODO should this be with replacement?
             sample_indices = filter(lambda d : X[d].sum() > 0, sample_indices)
-            curr_batch_size = len(sample_indices)
-            print t,
-            sys.stdout.flush()
-            rows = [convert_doc(X, d) for d in sample_indices]
+            rows = [convert_doc(X[d]) for d in sample_indices]
 
-            lengths = map(len, rows)
-            assert(min(lengths) > 0)
-            doc_mats = [np.zeros((l, self.V)) for l in lengths]
-            for d in range(curr_batch_size):
-                for n in range(lengths[d]):
-                    doc_mats[d][n][rows[d][n]] = 1.
-            ## TODO precompute E[beta|lambda] matrix here, to reduce the number of computations in the inner loop below
-            ## TODO split the E-step and M-step into 2 separate functions, and call both functions in fit2()
             phi, gamma = self.e_step(rows)
-            lmbda_new = float(self.D) / curr_batch_size * np.array([np.dot(mat.T, doc_mat) for mat, doc_mat in zip(phi, doc_mats)]).sum(axis=0) + self.eta
-            self.lmbda = (1 - self.learning_rate(t)) * self.lmbda + self.learning_rate(t) * lmbda_new
-            start_time = time.time()
+            self.m_step(rows, phi, t)
             elbo_lst.append(self.elbo(rows, phi, gamma))
-            end_time = time.time()
-            print type(elbo_lst[-1]), '%.3f' % (end_time - start_time), '\r',
-            sys.stdout.flush()
             t += 1
             if t % 1000000 == 0:
                 sns.heatmap(self.lmbda)
@@ -93,7 +90,7 @@ class LDA:
             print t, d, '\r',
             sys.stdout.flush()
             gamma = np.ones(self.K)
-            row = convert_doc(X, d)
+            row = convert_doc(X[d])
             N = len(row)
             if N == 0:
                 continue
@@ -234,9 +231,13 @@ class LDA:
     # TODO implement functions to output the log likelihood or perplexity (esp. for the sake of model comparison with HDPs)
     # TODO look at the ELBO computation in Hoffman et al. 2010 (section 2.1)s, to check the correctness of what I have
 
+with open(sys.path[0] + '\\dict.txt', 'r') as f:
+    vocab_list = [s[:-1] for s in f.readlines()]
+vectorizer = CountVectorizer(vocabulary=vocab_list)
+
 with open(sys.path[0] + '\\' + sys.argv[1], 'r') as f:
     corpus = [line[:-1] for line in f.readlines()]
-vectorizer = CountVectorizer(stop_words='english', min_df=10) # *****TODO can't just CountVectorizer the whole input, because that's a non-online operation. we need to pre-specify a vocabulary (e.g. use the vocabulary they used in Hoffman et al.'s code), so that it can be done in a streaming/online way without having to infer the vocab from the whole dataset
+
 X = vectorizer.fit_transform(corpus)
 print len(vectorizer.vocabulary_)
 print X.shape
