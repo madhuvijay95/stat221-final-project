@@ -101,24 +101,24 @@ if len(elbo_lst) < 100:
 
 sys.stdout.flush()
 
-with open('wikipedia_log_likelihoods_%d_%d_%.2f.p' % (lda.K, batch_size, lda.kappa), 'w') as f:
+with open('wikipedia_log_likelihoods_%d_%d_%d_%.2f.p' % (lda.K, batch_size, n_iter, lda.kappa), 'w') as f:
     pickle.dump(log_likelihoods, f)
-with open('wikipedia_elbos_%d_%d_%.2f.p' % (lda.K, batch_size, lda.kappa), 'w') as f:
+with open('wikipedia_elbos_%d_%d_%d_%.2f.p' % (lda.K, batch_size, n_iter, lda.kappa), 'w') as f:
     pickle.dump(elbo_lst, f)
-with open('wikipedia_LDA_details_%d_%d_%.2f.p' % (lda.K, batch_size, lda.kappa), 'w') as f:
+with open('wikipedia_LDA_details_%d_%d_%d_%.2f.p' % (lda.K, batch_size, n_iter, lda.kappa), 'w') as f:
     pickle.dump({'K' : lda.K, 'D' : lda.D, 'V' : lda.V, 'alpha' : lda.alpha, 'eta' : lda.eta, 'tau' : lda.tau,
                  'kappa' : lda.kappa, 'lambda' : lda.lmbda, 'scrape_time' : scrape_time, 'train_time' : train_time}, f)
 
 plt.plot(log_likelihoods)
-plt.savefig('wikipedia_log_likelihoods_%d_%d_%.2f.png' % (lda.K, batch_size, lda.kappa))
+plt.savefig('wikipedia_log_likelihoods_%d_%d_%d_%.2f.png' % (lda.K, batch_size, n_iter, lda.kappa))
 plt.show()
 log_likelihoods = np.array(log_likelihoods)
 window = 5
 if window <= len(log_likelihoods):
     plt.plot(reduce(lambda a,b : a+b, [log_likelihoods[i:len(log_likelihoods)-window+i] for i in range(window)]) / window)
-    plt.savefig('wikipedia_log_likelihoods_moving_avg_%d_%d_%d_%.2f.png' % (window, lda.K, batch_size, lda.kappa))
+    plt.savefig('wikipedia_log_likelihoods_moving_avg_%d_%d_%d_%d_%.2f.png' % (window, lda.K, batch_size, n_iter, lda.kappa))
     plt.show()
 plt.plot(elbo_lst)
-plt.savefig('wikipedia_elbos_%d_%d_%.2f.png' % (lda.K, batch_size, lda.kappa))
+plt.savefig('wikipedia_elbos_%d_%d_%d_%.2f.png' % (lda.K, batch_size, n_iter, lda.kappa))
 plt.show()
 
