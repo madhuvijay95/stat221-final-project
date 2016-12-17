@@ -90,37 +90,38 @@ for topic, row in enumerate(mean_dist):
     print '%d:' % topic, [vocab_list[ind] for ind in sorted(range(len(row)), key = lambda ind : -row[ind])[0:20]]
 print
 
-print 'Examples of articles from each topic:'
-for topic in set(zip(*examples)[1]):
-    print '%d:' % topic, [tup[0] + ' (%.1f%%)' % (100*tup[2]) for tup in examples if tup[1]==topic]
+#print 'Examples of articles from each topic:'
+#for topic in set(zip(*examples)[1]):
+#    print '%d:' % topic, [tup[0] + ' (%.1f%%)' % (100*tup[2]) for tup in examples if tup[1]==topic]
 
-if len(log_likelihoods) < 100:
-    print
-    print 'Log likelihoods:', log_likelihoods
-if len(elbo_lst) < 100:
-    print
-    print 'ELBOs:', elbo_lst
+#if len(log_likelihoods) < 100:
+#    print
+#    print 'Log likelihoods:', log_likelihoods
+#if len(elbo_lst) < 100:
+#    print
+#    print 'ELBOs:', elbo_lst
 
 sys.stdout.flush()
 
-with open('wikipedia_log_likelihoods_%d_%d_%.2f.p' % (hdp.K, batch_size, hdp.kappa), 'w') as f:
-    pickle.dump(log_likelihoods, f)
-with open('wikipedia_elbos_%d_%d_%.2f.p' % (hdp.K, batch_size, hdp.kappa), 'w') as f:
-    pickle.dump(elbo_lst, f)
+#with open('wikipedia_log_likelihoods_%d_%d_%.2f.p' % (hdp.K, batch_size, hdp.kappa), 'w') as f:
+#    pickle.dump(log_likelihoods, f)
+#with open('wikipedia_elbos_%d_%d_%.2f.p' % (hdp.K, batch_size, hdp.kappa), 'w') as f:
+#    pickle.dump(elbo_lst, f)
 with open('wikipedia_HDP_details_%d_%d_%.2f.p' % (hdp.K, batch_size, hdp.kappa), 'w') as f:
-    pickle.dump({'K' : hdp.K, 'D' : hdp.D, 'V' : hdp.V, 'alpha' : hdp.alpha, 'eta' : hdp.eta, 'tau' : hdp.tau,
-                 'kappa' : hdp.kappa, 'lambda' : hdp.lmbda, 'scrape_time' : scrape_time, 'train_time' : train_time}, f)
+    pickle.dump({'K' : hdp.K, 'T' : hdp.T, 'D' : hdp.D, 'V' : hdp.V, 'alpha' : hdp.alpha, 'eta' : hdp.eta,
+                 'omega' : hdp.omega, 'tau' : hdp.tau, 'kappa' : hdp.kappa, 'lambda' : hdp.lmbda,
+                 'scrape_time' : scrape_time, 'train_time' : train_time}, f)
 
-plt.plot(log_likelihoods)
-plt.savefig('wikipedia_log_likelihoods_%d_%d_%.2f.png' % (hdp.K, batch_size, hdp.kappa))
-plt.show()
-log_likelihoods = np.array(log_likelihoods)
-window = 5
-if window <= len(log_likelihoods):
-    plt.plot(reduce(lambda a,b : a+b, [log_likelihoods[i:len(log_likelihoods)-window+i] for i in range(window)]) / window)
-    plt.savefig('wikipedia_log_likelihoods_moving_avg_%d_%d_%d_%.2f.png' % (window, hdp.K, batch_size, hdp.kappa))
-    plt.show()
-plt.plot(elbo_lst)
-plt.savefig('wikipedia_elbos_%d_%d_%.2f.png' % (hdp.K, batch_size, hdp.kappa))
-plt.show()
+#plt.plot(log_likelihoods)
+#plt.savefig('wikipedia_log_likelihoods_%d_%d_%.2f.png' % (hdp.K, batch_size, hdp.kappa))
+#plt.show()
+#log_likelihoods = np.array(log_likelihoods)
+#window = 5
+#if window <= len(log_likelihoods):
+#    plt.plot(reduce(lambda a,b : a+b, [log_likelihoods[i:len(log_likelihoods)-window+i] for i in range(window)]) / window)
+#    plt.savefig('wikipedia_log_likelihoods_moving_avg_%d_%d_%d_%.2f.png' % (window, hdp.K, batch_size, hdp.kappa))
+#    plt.show()
+#plt.plot(elbo_lst)
+#plt.savefig('wikipedia_elbos_%d_%d_%.2f.png' % (hdp.K, batch_size, hdp.kappa))
+#plt.show()
 
