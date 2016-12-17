@@ -59,11 +59,8 @@ class LDA:
         for d in range(batch_size):
             for n in range(lengths[d]):
                 doc_mats[d][n][docs[d][n]] = 1.
-        #print np.array([np.dot(mat.T, doc_mat) for mat, doc_mat in zip(phi, doc_mats)]).shape
-        #print np.array([np.dot(mat.T, doc_mat) for mat, doc_mat in zip(phi, doc_mats)]).sum(axis=0).shape
-        #print np.array([np.dot(mat.T, doc_mat).sum(axis=0) for mat, doc_mat in zip(phi, doc_mats)]).shape
         # temp_mat == np.array([np.dot(mat.T, doc_mat) for mat, doc_mat in zip(phi, doc_mats)]).sum(axis=0). This loop
-        # gives a more space-efficient way to compute that sum of matrix products.
+        # simply gives a more space-efficient way to compute that sum of matrix products.
         temp_mat = np.zeros((self.K, self.V))
         for mat, doc_mat in zip(phi, doc_mats):
             prod = np.dot(mat.T, doc_mat)

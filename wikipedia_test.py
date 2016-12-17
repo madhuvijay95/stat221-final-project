@@ -21,8 +21,9 @@ V = len(vectorizer.vocabulary)
 n_topics = int(sys.argv[1])
 batch_size = int(sys.argv[2])
 n_iter = int(sys.argv[3])
+kappa = float(sys.argv[4]) if len(sys.argv) > 4 else 0.51
 max_retrieve = 64 # largest number of articles that are queried together in 1 function call
-lda = LDA(n_topics, D, V, 1./n_topics, 1./n_topics, 1, 0.51)
+lda = LDA(n_topics, D, V, 1./n_topics, 1./n_topics, 1, kappa)
 
 elbo_lst = []
 scrape_time = 0.
@@ -59,6 +60,7 @@ for t in range(n_iter):
     phi, gamma = lda.batch_update2(rows, t)
     pred_log_likelihoods = [lda.predictive_log_likelihood(gamma_row, word) for gamma_row, word in zip(gamma, words)]
     print zip([vectorizer.vocabulary[word] for word in words], pred_log_likelihoods)
+    print np.mean(pred_log_likelihoods)
     log_likelihoods.append(np.mean(pred_log_likelihoods))
     extreme_row = np.argmax((gamma.T / gamma.sum(axis=1)).max(axis=0))
     extreme_row_topic = np.argmax(gamma[extreme_row])
@@ -99,24 +101,24 @@ if len(elbo_lst) < 100:
 
 sys.stdout.flush()
 
-with open('wikipedia_log_likelihoods.p', 'w') as f:
+with open('wikipedia_log_likelihoods_%d_%d_%.2f.p' % (lda.K, batch_size, lda.kappa), 'w') as f:
     pickle.dump(log_likelihoods, f)
-with open('wikipedia_elbos.p', 'w') as f:
+with open('wikipedia_elbos_%d_%d_%.2f.p' % (lda.K, batch_size, lda.kappa), 'w') as f:
     pickle.dump(elbo_lst, f)
-with open('wikipedia_LDA_details.p', 'w') as f:
+with open('wikipedia_LDA_details_%d_%d_%.2f.p' % (lda.K, batch_size, lda.kappa), 'w') as f:
     pickle.dump({'K' : lda.K, 'D' : lda.D, 'V' : lda.V, 'alpha' : lda.alpha, 'eta' : lda.eta, 'tau' : lda.tau,
-                 'kappa' : lda.kappa, 'lambda' : lda.lmbda}, f)
+                 'kappa' : lda.kappa, 'lambda' : lda.lmbda, 'scrape_time' : scrape_time, 'train_time' : train_time}, f)
 
 plt.plot(log_likelihoods)
-plt.savefig('wikipedia_log_likelihoods.png')
+plt.savefig('wikipedia_log_likelihoods_%d_%d_%.2f.png' % (lda.K, batch_size, lda.kappa))
 plt.show()
 log_likelihoods = np.array(log_likelihoods)
 window = 5
 if window <= len(log_likelihoods):
     plt.plot(reduce(lambda a,b : a+b, [log_likelihoods[i:len(log_likelihoods)-window+i] for i in range(window)]) / window)
-    plt.savefig('wikipedia_log_likelihoods_moving_avg_%d.png' % window)
+    plt.savefig('wikipedia_log_likelihoods_moving_avg_%d_%d_%d_%.2f.png' % (window, lda.K, batch_size, lda.kappa))
     plt.show()
 plt.plot(elbo_lst)
-plt.savefig('wikipedia_elbos.png')
+plt.savefig('wikipedia_elbos_%d_%d_%.2f.png' % (lda.K, batch_size, lda.kappa))
 plt.show()
 
