@@ -12,6 +12,11 @@ def convert_doc(doc):
     assert (doc.sum() == len(row))
     return row
 
+def remove_word(row):
+    index_remove = np.random.choice(range(len(row)))
+    word = row[index_remove]
+    return np.delete(row, index_remove), word
+
 class LDA:
     def __init__(self, K, D, V, alpha, eta, tau, kappa):
         self.K = K
@@ -22,11 +27,12 @@ class LDA:
         self.learning_rate = lambda t : pow(tau+t+1, -kappa)
         self.lmbda = np.random.rand(self.K, self.V)
 
-    def e_step(self, docs):
+    def e_step(self, docs, gamma=None):
         # deal with the case where only 1 document was passed in (rather than a list of documents)
         if type(docs) != list:
             docs = [docs]
-        gamma = np.ones((len(docs), self.K))
+        if gamma is None:
+            gamma = np.ones((len(docs), self.K))
         phi = [np.zeros((l, self.K)) for l in map(len, docs)]
         digamma_lambda = digamma(self.lmbda)
         digamma_lambda_sum = digamma(self.lmbda.sum(axis=1))
@@ -231,6 +237,13 @@ class LDA:
         score = float(self.D) / len(docs) * (Elogptheta + Elogpz + ElogpX - Elogqtheta - Elogqz) + Elogpbeta - Elogqbeta
         return score
         #return float(self.D) / len(docs) * ElogpX, float(self.D) / len(docs) * (Elogptheta - Elogqtheta), float(self.D) / len(docs) * (Elogpz - Elogqz), Elogpbeta - Elogqbeta, score
+
+    def predictive_log_likelihood(self, gamma, word):
+        assert(gamma.shape[0] == self.K)
+        assert(self.lmbda.T[word].shape[0] == self.K)
+        assert(self.lmbda.sum(axis=1).shape[0] == self.K)
+        return np.log((gamma * self.lmbda.T[word] / self.lmbda.sum(axis=1)).sum()) - np.log(gamma.sum())
+        # TODO implement
 
     # TODO implement functions to output the log likelihood or perplexity (esp. for the sake of model comparison with HDPs)
     # TODO look at the ELBO computation in Hoffman et al. 2010 (section 2.1)s, to check the correctness of what I have
