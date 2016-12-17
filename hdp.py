@@ -108,3 +108,8 @@ class HDP:
         b_new = float(self.D) / batch_size * np.array([(-np.cumsum(zeta_mat, axis=1).T + zeta_mat.sum(axis=1)).sum(axis=1) for zeta_mat in zeta]).sum(axis=0) + self.omega
         self.b = (1 - self.learning_rate(t)) * self.b + self.learning_rate(t) * b_new
 
+    def batch_update(self, docs, t):
+        zeta, phi, ElogbetaT = self.init_iter(docs)
+        gamma1, gamma2, zeta, phi = self.e_step(docs, phi, ElogbetaT)
+        self.m_step(docs, zeta, phi, t)
+        return gamma1, gamma2, zeta, phi
