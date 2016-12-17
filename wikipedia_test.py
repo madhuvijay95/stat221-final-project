@@ -112,9 +112,10 @@ plt.savefig('wikipedia_log_likelihoods.png')
 plt.show()
 log_likelihoods = np.array(log_likelihoods)
 window = 5
-plt.plot(reduce(lambda a,b : a+b, [log_likelihoods[i:len(log_likelihoods)-window+i] for i in range(window)]) / window)
-plt.savefig('wikipedia_log_likelihoods_moving_avg_%d.png' % window)
-plt.show()
+if window <= len(log_likelihoods):
+    plt.plot(reduce(lambda a,b : a+b, [log_likelihoods[i:len(log_likelihoods)-window+i] for i in range(window)]) / window)
+    plt.savefig('wikipedia_log_likelihoods_moving_avg_%d.png' % window)
+    plt.show()
 plt.plot(elbo_lst)
 plt.savefig('wikipedia_elbos.png')
 plt.show()
