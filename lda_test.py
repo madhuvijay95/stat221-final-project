@@ -1,3 +1,13 @@
+from lda import LDA
+import numpy as np
+import sys
+from sklearn.feature_extraction.text import CountVectorizer
+import matplotlib.pyplot as plt
+import seaborn as sns
+from sklearn.decomposition import LatentDirichletAllocation as LDAsklearn
+import gensim
+import time
+
 with open(sys.path[0] + '\\dict.txt', 'r') as f:
     vocab_list = [s[:-1] for s in f.readlines()]
 vectorizer = CountVectorizer(vocabulary=vocab_list)

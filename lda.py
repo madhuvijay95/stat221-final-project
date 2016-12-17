@@ -4,8 +4,6 @@ import sys
 from sklearn.feature_extraction.text import CountVectorizer
 import matplotlib.pyplot as plt
 import seaborn as sns
-from sklearn.decomposition import LatentDirichletAllocation as LDAsklearn
-import gensim
 import time
 
 def convert_doc(doc):
@@ -22,6 +20,7 @@ class LDA:
         self.alpha = alpha # TODO figure out how to set these parameters -- model bsaed on Hoffman et al.'s code
         self.eta = eta
         self.learning_rate = lambda t : pow(tau+t+1, -kappa)
+        self.lmbda = np.random.rand(self.K, self.V)
 
     def e_step(self, docs):
         # deal with the case where only 1 document was passed in (rather than a list of documents)
@@ -61,7 +60,6 @@ class LDA:
 
     def fit2_batched(self, X, batch_size=16, n_iter=1000): # TODO create a new version of this that avoids computing anything for the same term multiple times; i.e. if a single term appears in the doc multiple times, then just compute it once. maybe model this after Hoffman et al's code?
         assert(self.V == X.shape[1])
-        self.lmbda = np.random.rand(self.K, self.V)
         t = 0
         elbo_lst = []
         while t < n_iter:
