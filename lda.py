@@ -5,6 +5,7 @@ from sklearn.feature_extraction.text import CountVectorizer
 import matplotlib.pyplot as plt
 import seaborn as sns
 import time
+from pympler import asizeof
 
 def convert_doc(doc):
     row = np.array(doc.todense())[0]
@@ -22,8 +23,10 @@ class LDA:
         self.K = K
         self.D = D
         self.V = V
-        self.alpha = alpha # TODO figure out how to set these parameters -- model bsaed on Hoffman et al.'s code
+        self.alpha = alpha
         self.eta = eta
+        self.tau = tau
+        self.kappa = kappa
         self.learning_rate = lambda t : pow(tau+t+1, -kappa)
         self.lmbda = np.random.rand(self.K, self.V)
 
@@ -56,7 +59,17 @@ class LDA:
         for d in range(batch_size):
             for n in range(lengths[d]):
                 doc_mats[d][n][docs[d][n]] = 1.
-        lmbda_new = float(self.D) / batch_size * np.array([np.dot(mat.T, doc_mat) for mat, doc_mat in zip(phi, doc_mats)]).sum(axis=0) + self.eta
+        #print np.array([np.dot(mat.T, doc_mat) for mat, doc_mat in zip(phi, doc_mats)]).shape
+        #print np.array([np.dot(mat.T, doc_mat) for mat, doc_mat in zip(phi, doc_mats)]).sum(axis=0).shape
+        #print np.array([np.dot(mat.T, doc_mat).sum(axis=0) for mat, doc_mat in zip(phi, doc_mats)]).shape
+        # temp_mat == np.array([np.dot(mat.T, doc_mat) for mat, doc_mat in zip(phi, doc_mats)]).sum(axis=0). This loop
+        # gives a more space-efficient way to compute that sum of matrix products.
+        temp_mat = np.zeros((self.K, self.V))
+        for mat, doc_mat in zip(phi, doc_mats):
+            prod = np.dot(mat.T, doc_mat)
+            temp_mat += prod
+            del prod
+        lmbda_new = float(self.D) / batch_size * temp_mat + self.eta
         self.lmbda = (1 - self.learning_rate(t)) * self.lmbda + self.learning_rate(t) * lmbda_new
 
     def batch_update2(self, docs, t):
@@ -178,7 +191,7 @@ class LDA:
             digamma_lambda_sum = digamma(self.lmbda.sum(axis=1))
             varphi = np.zeros((self.V, self.K)) # initialize varphi (just for the sake of having a well-defined while-loop condition below)
             change = 5.
-            while change > 0.001: # TODO is this a sufficient check of convergence? should it be made more/less stringent?
+            while change > 0.0001: # TODO is this a sufficient check of convergence? should it be made more/less stringent?
                 old_varphi = varphi.copy()
                 varphi = digamma_lambda.T + (digamma(gamma) - digamma_lambda_sum - digamma(gamma.sum())) # V x K
                 varphi = (varphi.T - varphi.max(axis=1)).T # subtract the max element from each log distribution -- ensures numerical stability in exponentiation and doesn't affect final result
