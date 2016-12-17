@@ -29,7 +29,7 @@ class LDA:
         self.learning_rate = lambda t : pow(tau+t+1, -kappa)
         self.lmbda = np.random.rand(self.K, self.V)
 
-    def e_step(self, docs, gamma=None):
+    def e_step(self, docs, gamma=None, max_iter=100):
         # deal with the case where only 1 document was passed in (rather than a list of documents)
         if type(docs) != list:
             docs = [docs]
@@ -41,7 +41,8 @@ class LDA:
         digamma_lambda_sum = digamma(self.lmbda.sum(axis=1))
         ElogbetaT = digamma_lambda.T - digamma_lambda_sum
         change = 5. * batch_size
-        while change / batch_size > 0.0001:
+        iter_count = 0
+        while change / batch_size > 0.0001 and iter_count < max_iter:
             old_phi = [mat.copy() for mat in phi]
             phi = [ElogbetaT[row] + (digamma(gamma_row) - digamma(gamma_row.sum())) for row, gamma_row in zip(docs, gamma)]
             phi = [(mat.T - mat.max(axis=1)).T for mat in phi]
@@ -49,8 +50,9 @@ class LDA:
             phi = [(mat.T / mat.sum(axis=1)).T for mat in phi]
             gamma = np.array([mat.sum(axis=0) + self.alpha for mat in phi])
             change = np.sqrt(sum([pow(np.linalg.norm(mat-old_mat), 2) for mat, old_mat in zip(phi, old_phi)]))
-            print change / batch_size, '\r',
+            print iter_count, change / batch_size, '\r',
             sys.stdout.flush()
+            iter_count += 1
         print
         return phi, gamma
 
