@@ -5,7 +5,6 @@ from sklearn.feature_extraction.text import CountVectorizer
 import matplotlib.pyplot as plt
 import seaborn as sns
 import time
-from pympler import asizeof
 
 def convert_doc(doc):
     row = np.array(doc.todense())[0]

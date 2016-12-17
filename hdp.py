@@ -20,7 +20,7 @@ class HDP:
         self.tau = tau
         self.kappa = kappa
         self.learning_rate = lambda t : pow(tau+t+1, -kappa)
-        self.lmbda = self.m_lambda = 1.0/self.V + 0.01 * np.random.gamma(1.0, 1.0, (self.T, self.V))
+        self.lmbda = self.m_lambda = 1.0/self.V + 0.01 * np.random.gamma(1.0, 1.0, (self.K, self.V))
         self.a = np.ones(K)
         self.b = np.ones(K) * omega
         pass
@@ -37,9 +37,9 @@ class HDP:
         zeta = np.array([np.tile(dist / dist.sum(), (self.T, 1)) for dist in zeta_dists])
         assert (zeta.shape == (batch_size, self.T, self.K))
 
-        phi = [np.dot(ElogbetaT[row], zeta_mat) for row, zeta_mat in zip(docs, zeta)]
+        phi = [np.dot(ElogbetaT[row], zeta_mat.T) for row, zeta_mat in zip(docs, zeta)]
         for row, mat in zip(docs, phi):
-            assert (phi.shape == (len(row), self.T))
+            assert (mat.shape == (len(row), self.T))
 
         return zeta, phi, ElogbetaT
 
@@ -82,10 +82,11 @@ class HDP:
             phi = [np.dot(ElogbetaT[doc], zeta_mat.T) for doc, zeta_mat in zip(docs, zeta)]
             phi = [phi_mat + Elogsigmapi_mat for phi_mat, Elogsigmapi_mat in zip(phi, Elogsigmapi)]
             phi = [np.exp(mat.T - mat.max(axis=1)) for mat in phi]
-            phi = [(mat / mat.sum(axis=1)).T for mat in phi]
+            phi = [(mat / mat.sum(axis=0)).T for mat in phi]
 
             change = np.sqrt(sum([pow(np.linalg.norm(mat-old_mat), 2) for mat, old_mat in zip(phi, old_phi)]))
-            print change
+            print change, '\r',
+            sys.stdout.flush()
 
         return gamma1, gamma2, zeta, phi
 
@@ -98,7 +99,7 @@ class HDP:
             for n in range(lengths[d]):
                 doc_mats[d][n][docs[d][n]] = 1.
 
-        temp_mat = np.array([np.dot(zeta_mat.T, np.dot(phi_mat.T, doc_mat)) for zeta_mat, phi_mat, doc_mat in zip(zeta, phi, docs)]).sum(axis=0)
+        temp_mat = np.array([np.dot(zeta_mat.T, np.dot(phi_mat.T, doc_mat)) for zeta_mat, phi_mat, doc_mat in zip(zeta, phi, doc_mats)]).sum(axis=0)
         lmbda_new = float(self.D) / batch_size * temp_mat + self.eta
         self.lmbda = (1 - self.learning_rate(t)) * self.lmbda + self.learning_rate(t) * lmbda_new
 
