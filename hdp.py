@@ -9,8 +9,20 @@ import time
 from lda import convert_doc, remove_word
 
 class HDP:
-    def __init__(self):
-        # TODO implement
+    def __init__(self, K, T, D, V, alpha, eta, omega, tau, kappa):
+        self.K = K
+        self.T = T
+        self.D = D
+        self.V = V
+        self.alpha = alpha
+        self.eta = eta
+        self.omega = omega
+        self.tau = tau
+        self.kappa = kappa
+        self.learning_rate = lambda t : pow(tau+t+1, -kappa)
+        self.lmbda = self.m_lambda = 1.0/self.V + 0.01 * np.random.gamma(1.0, 1.0, (self.T, self.V))
+        self.a = np.ones(K)
+        self.b = np.ones(K) * omega
         pass
 
     def init_iter(self, docs, ElogbetaT=None):
@@ -77,6 +89,22 @@ class HDP:
 
         return gamma1, gamma2, zeta, phi
 
-    def m_step(self):
-        # TODO implement
-        pass
+    def m_step(self, docs, zeta, phi, t):
+        batch_size = len(docs)
+        lengths = map(len, docs)
+        assert(min(lengths) > 0)
+        doc_mats = [np.zeros((l, self.V)) for l in lengths]
+        for d in range(batch_size):
+            for n in range(lengths[d]):
+                doc_mats[d][n][docs[d][n]] = 1.
+
+        temp_mat = np.array([np.dot(zeta_mat.T, np.dot(phi_mat.T, doc_mat)) for zeta_mat, phi_mat, doc_mat in zip(zeta, phi, docs)]).sum(axis=0)
+        lmbda_new = float(self.D) / batch_size * temp_mat + self.eta
+        self.lmbda = (1 - self.learning_rate(t)) * self.lmbda + self.learning_rate(t) * lmbda_new
+
+        a_new = float(self.D) / batch_size * np.array([zeta_mat.sum(axis=0) for zeta_mat in zeta]).sum(axis=0) + 1
+        self.a = (1 - self.learning_rate(t)) * self.a + self.learning_rate(t) * a_new
+
+        b_new = float(self.D) / batch_size * np.array([(-np.cumsum(zeta_mat, axis=1).T + zeta_mat.sum(axis=1)).sum(axis=1) for zeta_mat in zeta]).sum(axis=0) + self.omega
+        self.b = (1 - self.learning_rate(t)) * self.b + self.learning_rate(t) * b_new
+
