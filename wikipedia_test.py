@@ -57,7 +57,7 @@ for t in range(n_iter):
     rows = [convert_doc(mat[d]) for d in range(mat.shape[0])]
     rows, words = zip(*([remove_word(row) for row in rows]))
     rows = list(rows)
-    phi, gamma = lda.batch_update2(rows, t)
+    phi, gamma = lda.batch_update(rows, t)
     pred_log_likelihoods = [lda.predictive_log_likelihood(gamma_row, word) for gamma_row, word in zip(gamma, words)]
     print zip([vectorizer.vocabulary[word] for word in words], pred_log_likelihoods)
     print np.mean(pred_log_likelihoods)

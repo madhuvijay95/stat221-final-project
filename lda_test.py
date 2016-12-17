@@ -25,7 +25,7 @@ n_topics = int(sys.argv[2])
 n_iter = int(sys.argv[3]) if len(sys.argv) > 3 else 1000
 lda = LDA(n_topics, D, V, 1./n_topics, 1./n_topics, 1, 0.51)
 start_time = time.time()
-lda.fit2_batched(X, n_iter=n_iter)
+lda.fit_batched(X, n_iter=n_iter)
 end_time = time.time()
 print
 print 'Total time to fit LDA model: %.3f seconds' % (end_time - start_time)

@@ -69,12 +69,12 @@ class LDA:
         lmbda_new = float(self.D) / batch_size * temp_mat + self.eta
         self.lmbda = (1 - self.learning_rate(t)) * self.lmbda + self.learning_rate(t) * lmbda_new
 
-    def batch_update2(self, docs, t):
+    def batch_update(self, docs, t):
         phi, gamma = self.e_step(docs)
         self.m_step(docs, phi, t)
         return phi, gamma
 
-    def fit2_batched(self, X, batch_size=16, n_iter=1000): # TODO create a new version of this that avoids computing anything for the same term multiple times; i.e. if a single term appears in the doc multiple times, then just compute it once. maybe model this after Hoffman et al's code?
+    def fit_batched(self, X, batch_size=16, n_iter=1000): # TODO create a new version of this that avoids computing anything for the same term multiple times; i.e. if a single term appears in the doc multiple times, then just compute it once. maybe model this after Hoffman et al's code?
         assert(self.V == X.shape[1])
         t = 0
         elbo_lst = []
@@ -85,7 +85,7 @@ class LDA:
             sample_indices = filter(lambda d : X[d].sum() > 0, sample_indices)
             rows = [convert_doc(X[d]) for d in sample_indices]
 
-            phi, gamma = self.batch_update2(rows, t)
+            phi, gamma = self.batch_update(rows, t)
             elbo_lst.append(self.elbo(rows, phi, gamma))
             t += 1
             if t % 1000000 == 0:
@@ -99,113 +99,6 @@ class LDA:
         window = 5
         plt.plot(reduce(lambda a,b : a+b, [elbo_lst[i:len(elbo_lst)-window+i] for i in range(window)]) / window)
         plt.show()
-
-    # TODO I believe this is now obsolete; use fit2_batched instead
-    def fit2(self, X, n_iter=1000): # TODO create a new version of this that avoids computing anything for the same term multiple times; i.e. if a single term appears in the doc multiple times, then just compute it once. maybe model this after Hoffman et al's code?
-        self.D, self.V = X.shape
-        self.lmbda = np.random.rand(self.K, self.V)
-        t = 0
-        while t < n_iter:
-            d = np.random.randint(0, self.D)
-            print t, d, '\r',
-            sys.stdout.flush()
-            gamma = np.ones(self.K)
-            row = convert_doc(X[d])
-            N = len(row)
-            if N == 0:
-                continue
-            doc_mat = np.zeros((N, self.V))
-            for n in range(N):
-                doc_mat[n][row[n]] = 1.
-            phi = np.zeros((N, self.K))
-            digamma_lambda = digamma(self.lmbda)
-            digamma_lambda_sum = digamma(self.lmbda.sum(axis=1))
-            change = 5.
-            while change > 0.0001:
-                old_phi = phi.copy()
-                phi = digamma_lambda.T[row] + (digamma(gamma) - digamma_lambda_sum - digamma(gamma.sum()))
-                phi = (phi.T - phi.max(axis=1)).T
-                phi = np.exp(phi)
-                phi = (phi.T / phi.sum(axis=1)).T
-                gamma = phi.sum(axis=0) + self.alpha
-                change = np.linalg.norm(phi-old_phi)
-            lmbda_new = self.D * np.dot(phi.T, doc_mat) + self.eta
-            self.lmbda = (1 - self.learning_rate(t)) * self.lmbda + self.learning_rate(t) * lmbda_new
-            t += 1
-            if t % 1000000 == 0:
-                sns.heatmap(self.lmbda)
-                plt.show()
-                sns.heatmap((self.lmbda.T / self.lmbda.sum(axis=1)).T)
-                plt.show()
-
-    def fit_batched(self, X, batch_size=16, n_iter=1000):
-        self.D, self.V = X.shape
-        self.lmbda = np.random.rand(self.K, self.V)
-        self.beta = np.zeros((self.K, self.V))
-        t = 0
-        while t < n_iter:
-            sample_indices = np.random.choice(self.D, size=batch_size, replace=False) # TODO should this be with replacement?
-            sample_indices = filter(lambda d : X[d].sum() > 0, sample_indices)
-            curr_batch_size = len(sample_indices)
-            print t, '\r',
-            sys.stdout.flush()
-            gamma = np.ones((curr_batch_size, self.K)) # K
-            digamma_lambda = digamma(self.lmbda) # K x V
-            digamma_lambda_sum = digamma(self.lmbda.sum(axis=1))
-            varphi = np.zeros((curr_batch_size, self.V, self.K)) # initialize varphi (just for the sake of having a well-defined while-loop condition below)
-            change = 5.
-            while change > 0.0001:
-                old_varphi = varphi.copy()
-                #print np.array([np.tile(arr, (self.V, 1)) for arr in digamma(gamma)]).shape, digamma_lambda.T.shape, digamma_lambda_sum.shape, digamma(gamma.sum()).shape
-                varphi = np.array([np.tile(arr, (self.V, 1)) for arr in digamma(gamma)]) + (digamma_lambda.T - (digamma_lambda_sum + digamma(gamma.sum()))) # B x V x K
-                varphi = varphi.T # K x V x B
-                varphi = varphi - varphi.max(axis=0) # K x V x B
-                varphi = np.exp(varphi) # K x V x B
-                varphi = varphi / varphi.sum(axis=0) # K x V x B
-                varphi = varphi.T # B x V x K
-                gamma = np.array([np.dot(varphi_mat.T, doc_vec) for varphi_mat, doc_vec in zip(varphi, np.array(X[sample_indices].todense()))]) + self.alpha # B x K
-                change = np.linalg.norm(varphi-old_varphi)
-            lmbda_new = float(self.D) / curr_batch_size * (varphi.T * np.array(X[sample_indices].T.todense())).sum(axis=2) + self.eta
-            self.lmbda = (1 - self.learning_rate(t)) * self.lmbda + self.learning_rate(t) * lmbda_new
-            t += 1
-            if t % 1000 == 0:
-                sns.heatmap(self.lmbda)
-                plt.show()
-
-
-    # takes a D x V matrix of counts (e.g. output of CountVectorizer) as input
-    def fit(self, X, n_iter=1000): # TODO make a batched version of this as well
-        self.D, self.V = X.shape
-        self.lmbda = np.random.rand(self.K, self.V)
-        self.beta = np.zeros((self.K, self.V))
-        t = 0
-        while t < n_iter:
-            d = np.random.randint(0, self.D)
-            print t, d, self.beta.sum(), '\r',
-            sys.stdout.flush()
-            gamma = np.ones(self.K) # K
-            digamma_lambda = digamma(self.lmbda) # K x V
-            digamma_lambda_sum = digamma(self.lmbda.sum(axis=1))
-            varphi = np.zeros((self.V, self.K)) # initialize varphi (just for the sake of having a well-defined while-loop condition below)
-            change = 5.
-            while change > 0.0001: # TODO is this a sufficient check of convergence? should it be made more/less stringent?
-                old_varphi = varphi.copy()
-                varphi = digamma_lambda.T + (digamma(gamma) - digamma_lambda_sum - digamma(gamma.sum())) # V x K
-                varphi = (varphi.T - varphi.max(axis=1)).T # subtract the max element from each log distribution -- ensures numerical stability in exponentiation and doesn't affect final result
-                #varphi = varphi - varphi.max(axis=0) # subtract the max element from each log distribution -- ensures numerical stability in exponentiation and doesn't affect final result
-                varphi = np.exp(varphi)
-                #####varphi = varphi / varphi.sum(axis=0) # TODO figure this out -- am I normalizing correctly? also might need to fix the max-subtraction stuff above, based on that
-                varphi = (varphi.T / varphi.sum(axis=1)).T # V x K
-                gamma = np.dot(varphi.T, np.array(X[d].todense())[0]) + self.alpha # K
-                change = np.linalg.norm(varphi-old_varphi)
-            lmbda_new = self.D * varphi.T * np.array(X[d].todense())[0] + self.eta
-            #lmbda_new = self.D * np.dot(varphi.T, np.array(X[d].todense())[0]) + self.eta # wrong update rule -- need an elementwise product
-            self.lmbda = (1 - self.learning_rate(t)) * self.lmbda + self.learning_rate(t) * lmbda_new
-            self.beta = self.beta + varphi.T * np.array(X[d].todense())[0]
-            t += 1
-            if t % 1000 == 0:
-                sns.heatmap(self.beta)
-                plt.show()
 
     def elbo(self, docs, phi=None, gamma=None):
         if phi is None or gamma is None:
