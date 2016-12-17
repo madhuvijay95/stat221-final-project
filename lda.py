@@ -33,14 +33,15 @@ class LDA:
         # deal with the case where only 1 document was passed in (rather than a list of documents)
         if type(docs) != list:
             docs = [docs]
+        batch_size = len(docs)
         if gamma is None:
             gamma = np.ones((len(docs), self.K))
         phi = [np.zeros((l, self.K)) for l in map(len, docs)]
         digamma_lambda = digamma(self.lmbda)
         digamma_lambda_sum = digamma(self.lmbda.sum(axis=1))
         ElogbetaT = digamma_lambda.T - digamma_lambda_sum
-        change = 5.
-        while change > 0.0001:
+        change = 5. * batch_size
+        while change / batch_size > 0.0001:
             old_phi = [mat.copy() for mat in phi]
             phi = [ElogbetaT[row] + (digamma(gamma_row) - digamma(gamma_row.sum())) for row, gamma_row in zip(docs, gamma)]
             phi = [(mat.T - mat.max(axis=1)).T for mat in phi]
@@ -48,6 +49,9 @@ class LDA:
             phi = [(mat.T / mat.sum(axis=1)).T for mat in phi]
             gamma = np.array([mat.sum(axis=0) + self.alpha for mat in phi])
             change = np.sqrt(sum([pow(np.linalg.norm(mat-old_mat), 2) for mat, old_mat in zip(phi, old_phi)]))
+            print change / batch_size, '\r',
+            sys.stdout.flush()
+        print
         return phi, gamma
 
     def m_step(self, docs, phi, t):

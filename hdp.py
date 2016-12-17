@@ -44,7 +44,7 @@ class HDP:
         return zeta, phi, ElogbetaT
 
     def e_step(self, docs, phi, ElogbetaT=None):
-        batch_size = len(phi)
+        batch_size = len(docs)
         if ElogbetaT is None:
             digamma_lambda = digamma(self.lmbda)
             digamma_lambda_sum = digamma(self.lmbda.sum(axis=1))
@@ -54,8 +54,8 @@ class HDP:
         ElogoneminusV = digamma(self.b) - digamma(self.a + self.b)
         ElogsigmaV = ElogV + np.append(np.array([0]), np.cumsum(ElogoneminusV)[0:-1])
 
-        change = 5.
-        while change > 0.0001:
+        change = 5. * batch_size
+        while change / batch_size > 0.0001:
             old_phi = [mat.copy() for mat in phi]
 
             gamma1 = np.array([phi_mat.sum(axis=0) + 1 for phi_mat in phi])
@@ -85,8 +85,9 @@ class HDP:
             phi = [(mat / mat.sum(axis=0)).T for mat in phi]
 
             change = np.sqrt(sum([pow(np.linalg.norm(mat-old_mat), 2) for mat, old_mat in zip(phi, old_phi)]))
-            print change, '\r',
+            print change / batch_size, '\r',
             sys.stdout.flush()
+        print
 
         return gamma1, gamma2, zeta, phi
 
