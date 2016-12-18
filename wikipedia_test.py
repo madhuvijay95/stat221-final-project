@@ -111,14 +111,17 @@ with open('wikipedia_LDA_details_%d_%d_%d_%.2f.p' % (lda.K, batch_size, n_iter, 
 
 plt.plot(log_likelihoods)
 plt.savefig('wikipedia_log_likelihoods_%d_%d_%d_%.2f.png' % (lda.K, batch_size, n_iter, lda.kappa))
-plt.show()
+plt.close()
+#plt.show()
 log_likelihoods = np.array(log_likelihoods)
 window = 5
 if window <= len(log_likelihoods):
     plt.plot(reduce(lambda a,b : a+b, [log_likelihoods[i:len(log_likelihoods)-window+i] for i in range(window)]) / window)
     plt.savefig('wikipedia_log_likelihoods_moving_avg_%d_%d_%d_%d_%.2f.png' % (window, lda.K, batch_size, n_iter, lda.kappa))
-    plt.show()
+    plt.close()
+    #plt.show()
 plt.plot(elbo_lst)
 plt.savefig('wikipedia_elbos_%d_%d_%d_%.2f.png' % (lda.K, batch_size, n_iter, lda.kappa))
-plt.show()
+plt.close()
+#plt.show()
 
