@@ -23,7 +23,7 @@ n_topics = int(sys.argv[1])
 n_topics_per_doc = int(sys.argv[2])
 batch_size = int(sys.argv[3])
 n_iter = int(sys.argv[4])
-kappa = float(sys.argv[5]) if len(sys.argv) > 4 else 0.51
+kappa = float(sys.argv[5]) if len(sys.argv) > 5 else 0.51
 max_retrieve = 64 # largest number of articles that are queried together in 1 function call
 hdp = HDP(n_topics, n_topics_per_doc, D, V, 1., 1./n_topics, 1., 1, kappa)
 
