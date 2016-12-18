@@ -103,26 +103,32 @@ print
 
 sys.stdout.flush()
 
-with open('wikipedia_log_likelihoods_%d_%d_%.2f.p' % (hdp.K, batch_size, hdp.kappa), 'w') as f:
+topic_proportions_cumulative = 1 - np.exp(np.cumsum(np.log(hdp.b / (hdp.a + hdp.b))))
+print topic_proportions_cumulative
+plt.plot(topic_proportions_cumulative)
+plt.savefig('wikipedia_HDP_proportions_cumulative_%d_%d_%d_%.2f.png' % (hdp.K, hdp.T, batch_size, hdp.kappa))
+plt.close()
+
+with open('wikipedia_HDP_log_likelihoods_%d_%d_%d_%.2f.p' % (hdp.K, hdp.T, batch_size, hdp.kappa), 'w') as f:
     pickle.dump(log_likelihoods, f)
-#with open('wikipedia_elbos_%d_%d_%.2f.p' % (hdp.K, batch_size, hdp.kappa), 'w') as f:
+#with open('wikipedia_elbos_%d_%d_%d_%.2f.p' % (hdp.K, hdp.T, batch_size, hdp.kappa), 'w') as f:
 #    pickle.dump(elbo_lst, f)
-with open('wikipedia_HDP_details_%d_%d_%.2f.p' % (hdp.K, batch_size, hdp.kappa), 'w') as f:
+with open('wikipedia_HDP_details_%d_%d_%d_%.2f.p' % (hdp.K, hdp.T, batch_size, hdp.kappa), 'w') as f:
     pickle.dump({'K' : hdp.K, 'T' : hdp.T, 'D' : hdp.D, 'V' : hdp.V, 'alpha' : hdp.alpha, 'eta' : hdp.eta,
                  'omega' : hdp.omega, 'tau' : hdp.tau, 'kappa' : hdp.kappa, 'lambda' : hdp.lmbda, 'a' : hdp.a,
                  'b' : hdp.b, 'scrape_time' : scrape_time, 'train_time' : train_time}, f)
 
 plt.plot(log_likelihoods)
-plt.savefig('wikipedia_log_likelihoods_%d_%d_%.2f.png' % (hdp.K, batch_size, hdp.kappa))
+plt.savefig('wikipedia_HDP_log_likelihoods_%d_%d_%d_%.2f.png' % (hdp.K, hdp.T, batch_size, hdp.kappa))
 plt.close()
 #plt.show()
 log_likelihoods = np.array(log_likelihoods)
 window = 5
 if window <= len(log_likelihoods):
     plt.plot(reduce(lambda a,b : a+b, [log_likelihoods[i:len(log_likelihoods)-window+i] for i in range(window)]) / window)
-    plt.savefig('wikipedia_log_likelihoods_moving_avg_%d_%d_%d_%.2f.png' % (window, hdp.K, batch_size, hdp.kappa))
+    plt.savefig('wikipedia_HDP_log_likelihoods_moving_avg_%d_%d_%d_%d_%.2f.png' % (window, hdp.K, hdp.T, batch_size, hdp.kappa))
     plt.close()
     #plt.show()
 #plt.plot(elbo_lst)
-#plt.savefig('wikipedia_elbos_%d_%d_%.2f.png' % (hdp.K, batch_size, hdp.kappa))
+#plt.savefig('wikipedia_HDP_elbos_%d_%d_%d_%.2f.png' % (hdp.K, hdp.T, batch_size, hdp.kappa))
 #plt.show()
