@@ -117,3 +117,12 @@ class HDP:
         gamma1, gamma2, zeta, phi = self.e_step(docs, phi, ElogbetaT)
         self.m_step(docs, zeta, phi, t)
         return gamma1, gamma2, zeta, phi
+
+    def predictive_log_likelihood(self, gamma1, gamma2, zeta, word):
+        Epi = gamma1 / (gamma1 + gamma2)
+        Esigmapi = np.exp(np.append(np.array([0]), np.cumsum(np.log(1 - Epi))[0:-1])) * Epi
+        #if (Esigmapi * np.dot(zeta, self.lmbda.T[word])).sum() > 5:
+        #    print word
+        #    print self.lmbda.T[word]
+        #print
+        return np.log((Esigmapi * np.dot(zeta, self.lmbda.T[word] / self.lmbda.sum(axis=1))).sum())
