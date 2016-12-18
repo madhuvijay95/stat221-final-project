@@ -18,14 +18,14 @@ with open(sys.path[0] + '\\dict.txt', 'r') as f:
 vectorizer = CountVectorizer(vocabulary=vocab_list)
 
 D = 3.3e6 # fix this
-T = 5
 V = len(vectorizer.vocabulary)
 n_topics = int(sys.argv[1])
-batch_size = int(sys.argv[2])
-n_iter = int(sys.argv[3])
-kappa = float(sys.argv[4]) if len(sys.argv) > 4 else 0.51
+n_topics_per_doc = int(sys.argv[2])
+batch_size = int(sys.argv[3])
+n_iter = int(sys.argv[4])
+kappa = float(sys.argv[5]) if len(sys.argv) > 4 else 0.51
 max_retrieve = 64 # largest number of articles that are queried together in 1 function call
-hdp = HDP(n_topics, T, D, V, 1./n_topics, 1./n_topics, 1., 1, kappa)
+hdp = HDP(n_topics, n_topics_per_doc, D, V, 1., 1./n_topics, 1., 1, kappa)
 
 elbo_lst = []
 scrape_time = 0.
@@ -60,10 +60,10 @@ for t in range(n_iter):
     rows, words = zip(*([remove_word(row) for row in rows]))
     rows = list(rows)
     gamma1, gamma2, zeta, phi = hdp.batch_update(rows, t)
-    #pred_log_likelihoods = [hdp.predictive_log_likelihood(gamma_row, word) for gamma_row, word in zip(gamma, words)]
-    #print zip([vectorizer.vocabulary[word] for word in words], pred_log_likelihoods)
-    #print np.mean(pred_log_likelihoods)
-    #log_likelihoods.append(np.mean(pred_log_likelihoods))
+    pred_log_likelihoods = [hdp.predictive_log_likelihood(gamma1_row, gamma2_row, zeta_row, word) for gamma1_row, gamma2_row, zeta_row, word in zip(gamma1, gamma2, zeta, words)]
+    print zip([vectorizer.vocabulary[word] for word in words], pred_log_likelihoods)
+    print np.mean(pred_log_likelihoods)
+    log_likelihoods.append(np.mean(pred_log_likelihoods))
     #extreme_row = np.argmax((gamma.T / gamma.sum(axis=1)).max(axis=0))
     #extreme_row_topic = np.argmax(gamma[extreme_row])
     #examples.append((articlenames[extreme_row], extreme_row_topic, (gamma.T / gamma.sum(axis=1)).max()))
@@ -103,25 +103,26 @@ print
 
 sys.stdout.flush()
 
-#with open('wikipedia_log_likelihoods_%d_%d_%.2f.p' % (hdp.K, batch_size, hdp.kappa), 'w') as f:
-#    pickle.dump(log_likelihoods, f)
+with open('wikipedia_log_likelihoods_%d_%d_%.2f.p' % (hdp.K, batch_size, hdp.kappa), 'w') as f:
+    pickle.dump(log_likelihoods, f)
 #with open('wikipedia_elbos_%d_%d_%.2f.p' % (hdp.K, batch_size, hdp.kappa), 'w') as f:
 #    pickle.dump(elbo_lst, f)
 with open('wikipedia_HDP_details_%d_%d_%.2f.p' % (hdp.K, batch_size, hdp.kappa), 'w') as f:
     pickle.dump({'K' : hdp.K, 'T' : hdp.T, 'D' : hdp.D, 'V' : hdp.V, 'alpha' : hdp.alpha, 'eta' : hdp.eta,
-                 'omega' : hdp.omega, 'tau' : hdp.tau, 'kappa' : hdp.kappa, 'lambda' : hdp.lmbda,
-                 'scrape_time' : scrape_time, 'train_time' : train_time}, f)
+                 'omega' : hdp.omega, 'tau' : hdp.tau, 'kappa' : hdp.kappa, 'lambda' : hdp.lmbda, 'a' : hdp.a,
+                 'b' : hdp.b, 'scrape_time' : scrape_time, 'train_time' : train_time}, f)
 
-#plt.plot(log_likelihoods)
-#plt.savefig('wikipedia_log_likelihoods_%d_%d_%.2f.png' % (hdp.K, batch_size, hdp.kappa))
+plt.plot(log_likelihoods)
+plt.savefig('wikipedia_log_likelihoods_%d_%d_%.2f.png' % (hdp.K, batch_size, hdp.kappa))
+plt.close()
 #plt.show()
-#log_likelihoods = np.array(log_likelihoods)
-#window = 5
-#if window <= len(log_likelihoods):
-#    plt.plot(reduce(lambda a,b : a+b, [log_likelihoods[i:len(log_likelihoods)-window+i] for i in range(window)]) / window)
-#    plt.savefig('wikipedia_log_likelihoods_moving_avg_%d_%d_%d_%.2f.png' % (window, hdp.K, batch_size, hdp.kappa))
-#    plt.show()
+log_likelihoods = np.array(log_likelihoods)
+window = 5
+if window <= len(log_likelihoods):
+    plt.plot(reduce(lambda a,b : a+b, [log_likelihoods[i:len(log_likelihoods)-window+i] for i in range(window)]) / window)
+    plt.savefig('wikipedia_log_likelihoods_moving_avg_%d_%d_%d_%.2f.png' % (window, hdp.K, batch_size, hdp.kappa))
+    plt.close()
+    #plt.show()
 #plt.plot(elbo_lst)
 #plt.savefig('wikipedia_elbos_%d_%d_%.2f.png' % (hdp.K, batch_size, hdp.kappa))
 #plt.show()
-
