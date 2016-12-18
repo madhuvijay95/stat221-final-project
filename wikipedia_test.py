@@ -16,12 +16,12 @@ with open(sys.path[0] + '\\dict.txt', 'r') as f:
     vocab_list = [s[:-1] for s in f.readlines()]
 vectorizer = CountVectorizer(vocabulary=vocab_list)
 
-D = 3.3e6 # fix this
 V = len(vectorizer.vocabulary)
 n_topics = int(sys.argv[1])
 batch_size = int(sys.argv[2])
 n_iter = int(sys.argv[3])
 kappa = float(sys.argv[4]) if len(sys.argv) > 4 else 0.51
+D = batch_size * n_iter
 max_retrieve = 64 # largest number of articles that are queried together in 1 function call
 lda = LDA(n_topics, D, V, 1./n_topics, 1./n_topics, 1, kappa)
 

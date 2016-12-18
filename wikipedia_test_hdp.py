@@ -17,15 +17,15 @@ with open(sys.path[0] + '\\dict.txt', 'r') as f:
     vocab_list = [s[:-1] for s in f.readlines()]
 vectorizer = CountVectorizer(vocabulary=vocab_list)
 
-D = 3.3e6 # fix this
 V = len(vectorizer.vocabulary)
 n_topics = int(sys.argv[1])
 n_topics_per_doc = int(sys.argv[2])
 batch_size = int(sys.argv[3])
 n_iter = int(sys.argv[4])
 kappa = float(sys.argv[5]) if len(sys.argv) > 5 else 0.51
+D = batch_size * n_iter # is this reasonable?
 max_retrieve = 64 # largest number of articles that are queried together in 1 function call
-hdp = HDP(n_topics, n_topics_per_doc, D, V, 1., 1./n_topics, 1., 1, kappa)
+hdp = HDP(n_topics, n_topics_per_doc, D, V, 1., 0.01, 100., 1, kappa)
 
 elbo_lst = []
 scrape_time = 0.
