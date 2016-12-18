@@ -102,7 +102,9 @@ class HDP:
             for n in range(lengths[d]):
                 doc_mats[d][n][docs[d][n]] = 1.
 
-        temp_mat = np.array([np.dot(zeta_mat.T, np.dot(phi_mat.T, doc_mat)) for zeta_mat, phi_mat, doc_mat in zip(zeta, phi, doc_mats)]).sum(axis=0)
+        temp_mat = np.zeros((self.K, self.V))
+        for zeta_mat, phi_mat, doc_mat in zip(zeta, phi, doc_mats):
+            temp_mat += np.dot(zeta_mat.T, np.dot(phi_mat.T, doc_mat))
         lmbda_new = float(self.D) / batch_size * temp_mat + self.eta
         self.lmbda = (1 - self.learning_rate(t)) * self.lmbda + self.learning_rate(t) * lmbda_new
 
